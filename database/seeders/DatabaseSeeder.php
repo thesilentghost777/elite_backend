@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
             CorrespondenceSeeder::class,
             CareerProfileSeeder::class,
             ProfileMatchingSeeder::class,
-            PackProfileSeeder::class,
+            ProfilePackSeeder::class,
             RoadmapSeeder::class,
             PackSeeder::class,
         ]);
