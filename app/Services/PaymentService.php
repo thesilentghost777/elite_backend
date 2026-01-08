@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\CashCode;
 use App\Models\EliteUser;
 use App\Models\Pack;
+use App\Models\Module;
+use App\Models\Chapter;
+use App\Models\ChapterUnlock;
 use App\Models\SystemSetting;
 use App\Models\Transaction;
 use App\Models\Transfer;
@@ -314,8 +317,9 @@ class PaymentService
                     ChapterUnlock::firstOrCreate([
                         'user_id' => $user->id,
                         'chapter_id' => $firstChapter->id,
-                    ], [
-                        'unlock_method' => 'purchase',
+                    ],
+                    [
+                        'unlock_method' => 'score',  // Or 'score' depending on your business logic
                         'unlocked_at' => now(),
                     ]);
                 }

@@ -8,6 +8,12 @@ use Illuminate\Support\Str;
 
 class Transaction extends Model
 {
+
+    const STATUS_PENDING = 'en_attente';
+    const STATUS_COMPLETE = 'complete';
+    const STATUS_FAILED = 'echoue';
+    const STATUS_CANCELLED = 'annule';
+    
     use HasFactory;
 
     protected $fillable = [

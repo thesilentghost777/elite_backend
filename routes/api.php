@@ -7,7 +7,27 @@ use App\Http\Controllers\Api\CourseController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\FaqController;
+use App\Http\Controllers\Api\PaymentController;
 use Illuminate\Support\Facades\Route;
+
+
+
+
+// Routes de paiement
+Route::prefix('payment')->group(function () {
+    // Routes nécessitant l'authentification
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/initiate-deposit', [PaymentController::class, 'initiateDeposit']);
+        Route::post('/check-status', [PaymentController::class, 'checkPaymentStatus']);
+    });
+    
+    // Webhook MoneyFusion (sans authentification)
+    Route::post('/webhook', [PaymentController::class, 'webhook'])->name('payment.webhook');
+    
+    // URL de retour après paiement (sans authentification)
+    Route::get('/return', [PaymentController::class, 'returnUrl'])->name('payment.return');
+});
+
 
 // ============================================
 // ROUTES PUBLIQUES
@@ -72,6 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::post('/quiz/{id}/submit', [CourseController::class, 'submitQuiz'])->where('id', '[0-9]+');
 
+    Route::get('chapters/{id}/quiz-info', [CourseController::class, 'getChapterQuizInfo']);
     // Wallet & Paiements
     Route::get('/wallet/balance', [WalletController::class, 'balance']);
     Route::post('/wallet/deposit', [WalletController::class, 'deposit']);

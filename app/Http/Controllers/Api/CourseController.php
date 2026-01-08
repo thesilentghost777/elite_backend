@@ -75,4 +75,48 @@ class CourseController extends Controller
     public function unlockByReferral(Request $request, int $id): JsonResponse { 
         return response()->json(['success' => true, 'data' => $this->service->unlockChapterByReferral($request->user(), $id)]); 
     }
+
+    public function getChapterQuizInfo(Request $request, int $chapterId): JsonResponse 
+{ 
+    $user = $request->user();
+    
+    // Vérifier que le chapitre existe et a un quiz
+    $chapter = Chapter::with('quizzes')->findOrFail($chapterId);
+    
+    if (!$chapter->quizzes || $chapter->quizzes->isEmpty()) {
+        return response()->json([
+            'success' => false, 
+            'message' => 'Aucun quiz pour ce chapitre'
+        ], 404);
+    }
+    
+    $quiz = $chapter->quizzes->first();
+    
+    // Récupérer les résultats de l'utilisateur pour ce quiz
+    $results = QuizResult::where('user_id', $user->id)
+        ->where('quiz_id', $quiz->id)
+        ->get();
+    
+    if ($results->isEmpty()) {
+        return response()->json([
+            'success' => false, 
+            'message' => 'Aucune tentative'
+        ], 404);
+    }
+    
+    // Trouver le meilleur score
+    $bestResult = $results->sortByDesc('note')->first();
+    $attempts = $results->count();
+    
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'id' => $quiz->id,
+            'titre' => $quiz->titre,
+            'best_score' => round(($bestResult->note / $quiz->note_totale) * 20, 2),
+            'passed' => $bestResult->reussi,
+            'attempts' => $attempts,
+        ]
+    ]);
+}
 }

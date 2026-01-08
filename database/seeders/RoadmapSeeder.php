@@ -7,431 +7,567 @@ use Illuminate\Support\Facades\DB;
 
 class RoadmapSeeder extends Seeder
 {
-    /**
-     * Seed roadmaps for each career profile.
-     */
     public function run(): void
     {
-        $profiles = DB::table('career_profiles')->get();
-
-        foreach ($profiles as $profile) {
-            // Créer la roadmap principale
-            $roadmapId = DB::table('roadmaps')->insertGetId([
-                'profile_id' => $profile->id,
-                'niveau_depart' => $profile->niveau_minimum,
-                'titre' => "Parcours pour devenir {$profile->nom}",
-                'description' => "Votre feuille de route personnalisée vers le métier de {$profile->nom}",
-                'duree_estimee_mois' => $this->getDureeMois($profile->niveau_minimum),
-                'active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            // Créer les étapes selon le niveau minimum requis
-            $this->createStepsForLevel($roadmapId, $profile);
-        }
-    }
-
-    private function getDureeMois(string $niveau): int
-    {
-        return match($niveau) {
-            'BEPC' => 9,
-            'Probatoire' => 9,
-            'BAC' => 12,
-            'Licence' => 18,
-            'Master' => 30,
-            default => 12,
-        };
-    }
-
-    private function getDureeSemaines(string $duree): ?int
-    {
-        return match($duree) {
-            '1 semaine' => 1,
-            '2 semaines' => 2,
-            '1 mois' => 4,
-            '2 mois' => 8,
-            '3 mois' => 12,
-            '4 mois' => 16,
-            '6 mois' => 24,
-            '12 mois' => 48,
-            default => null,
-        };
-    }
-
-    private function createStepsForLevel(int $roadmapId, object $profile): void
-    {
-        $niveau = $profile->niveau_minimum;
-        $steps = [];
-
-        // Étape 1 : Évaluation initiale (commune à tous)
-        $steps[] = [
-            'titre' => 'Évaluation de votre profil',
-            'description' => 'Analyse de vos compétences actuelles et définition de vos objectifs',
-            'type' => 'formation', // Changé de 'evaluation' à 'formation'
-            'duree_semaines' => 1,
-            'ordre' => 1,
-            'ressources' => json_encode([
-                'Test de positionnement',
-                'Entretien avec un conseiller',
-                'Bilan de compétences'
-            ]),
+        $profiles = [
+            1 => 'Secrétaire Bureautique',
+            2 => 'Assistant(e) de Direction',
+            3 => 'Secrétaire Comptable',
+            4 => 'Infographe',
+            5 => 'Monteur Vidéo',
+            6 => 'Graphiste 3D',
+            7 => 'Esthéticien(ne)',
+            8 => 'Décorateur(trice)',
+            9 => 'Spécialiste Marketing Digital',
+            10 => 'Développeur Web et Mobile',
+            11 => 'Chef de Projet',
+            12 => 'Responsable RH',
+            13 => 'Comptable',
+            14 => 'Banquier',
+            15 => 'Agent en Douane et Transit',
+            16 => 'Logisticien',
+            17 => 'Technicien Maintenance Informatique',
+            18 => 'Administrateur Réseau',
+            19 => 'Avocat',
+            20 => 'Médecin',
+            21 => 'Infirmier(ère)',
+            22 => 'Enseignant',
+            23 => 'Journaliste',
+            24 => 'Footballeur Professionnel',
+            25 => 'Musicien',
+            26 => 'Chauffeur Professionnel',
+            27 => 'Ingénieur Génie Civil',
+            28 => 'Pharmacien',
+            29 => 'Cuisinier/Chef',
+            30 => 'Policier/Gendarme',
+            31 => 'Entrepreneur',
+            32 => 'Agronome',
+            33 => 'Architecte',
         ];
 
-        // Étapes selon le niveau
-        switch ($niveau) {
-            case 'BEPC':
-                $steps = array_merge($steps, $this->getBEPCSteps($profile));
-                break;
-            case 'Probatoire':
-                $steps = array_merge($steps, $this->getProbSteps($profile));
-                break;
-            case 'BAC':
-                $steps = array_merge($steps, $this->getBACSteps($profile));
-                break;
-            case 'Licence':
-                $steps = array_merge($steps, $this->getLicenceSteps($profile));
-                break;
-            case 'Master':
-                $steps = array_merge($steps, $this->getMasterSteps($profile));
-                break;
-        }
-
-        // Étape finale : Insertion professionnelle
-        $steps[] = [
-            'titre' => 'Insertion professionnelle',
-            'description' => 'Accompagnement vers l\'emploi et le réseau professionnel',
-            'type' => 'experience', // Changé de 'insertion' à 'experience'
-            'duree_semaines' => 8, // 2 mois = 8 semaines
-            'ordre' => count($steps) + 1,
-            'ressources' => json_encode([
-                'Création de CV professionnel',
-                'Préparation aux entretiens',
-                'Mise en relation avec des entreprises',
-                'Accompagnement création d\'entreprise'
-            ]),
+        $levelOrder = [
+            'BEPC' => 1,
+            'Probatoire' => 2,
+            'BAC' => 3,
+            'Licence' => 4,
+            'Master' => 5,
         ];
 
-        // Insérer toutes les étapes
-        foreach ($steps as $step) {
-            DB::table('roadmap_steps')->insert([
-                'roadmap_id' => $roadmapId,
-                'titre' => $step['titre'],
-                'description' => $step['description'],
-                'type' => $step['type'],
-                'ordre' => $step['ordre'],
-                'duree_semaines' => $step['duree_semaines'] ?? null,
-                'pack_recommande_id' => $step['pack_id'] ?? null,
-                'obligatoire' => $step['obligatoire'] ?? true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
-    }
-
-    private function getBEPCSteps(object $profile): array
-    {
-        return [
-            [
-                'titre' => 'Formation de base',
-                'description' => 'Acquisition des compétences fondamentales du métier',
-                'type' => 'formation',
-                'duree_semaines' => 12, // 3 mois = 12 semaines
-                'ordre' => 2,
-                'ressources' => json_encode([
-                    'Cours théoriques en ligne',
-                    'Exercices pratiques',
-                    'Quiz de validation'
-                ]),
-            ],
-            [
-                'titre' => 'Spécialisation AQP',
-                'description' => 'Approfondissement et obtention de l\'Attestation de Qualification Professionnelle',
-                'type' => 'certification',
-                'duree_semaines' => 8, // 2 mois = 8 semaines
-                'ordre' => 3,
-                'ressources' => json_encode([
-                    'Modules spécialisés',
-                    'Projets pratiques',
-                    'Préparation à l\'examen'
-                ]),
-            ],
-            [
-                'titre' => 'Stage pratique',
-                'description' => 'Immersion en entreprise pour acquérir l\'expérience terrain',
-                'type' => 'stage',
-                'duree_semaines' => 6, // 1-2 mois = 6 semaines
-                'ordre' => 4,
-                'ressources' => json_encode([
-                    'Stage en entreprise partenaire',
-                    'Mentorat professionnel',
-                    'Rapport de stage'
-                ]),
-            ],
-        ];
-    }
-
-    private function getProbSteps(object $profile): array
-    {
-        return [
-            [
-                'titre' => 'Remise à niveau',
-                'description' => 'Consolidation des bases nécessaires pour la formation',
-                'type' => 'formation',
-                'duree_semaines' => 4, // 1 mois = 4 semaines
-                'ordre' => 2,
-                'ressources' => json_encode([
-                    'Tests de niveau',
-                    'Modules de renforcement',
-                    'Cours de rattrapage'
-                ]),
-            ],
-            [
-                'titre' => 'Formation professionnelle',
-                'description' => 'Formation complète aux techniques du métier',
-                'type' => 'formation',
-                'duree_semaines' => 16, // 4 mois = 16 semaines
-                'ordre' => 3,
-                'ressources' => json_encode([
-                    'Cours théoriques',
-                    'Travaux pratiques',
-                    'Études de cas'
-                ]),
-            ],
-            [
-                'titre' => 'Certification CQP',
-                'description' => 'Préparation et obtention du Certificat de Qualification Professionnelle',
-                'type' => 'certification',
-                'duree_semaines' => 8, // 2 mois = 8 semaines
-                'ordre' => 4,
-                'ressources' => json_encode([
-                    'Révisions intensives',
-                    'Examens blancs',
-                    'Soutenance de projet'
-                ]),
-            ],
-            [
-                'titre' => 'Expérience pratique',
-                'description' => 'Stage ou alternance en milieu professionnel',
-                'type' => 'stage',
-                'duree_semaines' => 10, // 2-3 mois = 10 semaines
-                'ordre' => 5,
-                'ressources' => json_encode([
-                    'Stage conventionné',
-                    'Suivi tutoral',
-                    'Évaluation continue'
-                ]),
-            ],
-        ];
-    }
-
-    private function getBACSteps(object $profile): array
-    {
-        return [
-            [
-                'titre' => 'Orientation et planification',
-                'description' => 'Définition du parcours adapté à vos objectifs',
-                'type' => 'formation',
-                'duree_semaines' => 2,
-                'ordre' => 2,
-                'ressources' => json_encode([
-                    'Conseil en orientation',
-                    'Plan de formation personnalisé',
-                    'Objectifs SMART'
-                ]),
-            ],
-            [
-                'titre' => 'Formation fondamentale',
-                'description' => 'Maîtrise des concepts et techniques de base',
-                'type' => 'formation',
-                'duree_semaines' => 12, // 3 mois = 12 semaines
-                'ordre' => 3,
-                'ressources' => json_encode([
-                    'Modules e-learning',
-                    'Webinaires experts',
-                    'Exercices notés'
-                ]),
-            ],
-            [
-                'titre' => 'Spécialisation avancée',
-                'description' => 'Approfondissement dans votre domaine de spécialité',
-                'type' => 'formation',
-                'duree_semaines' => 12, // 3 mois = 12 semaines
-                'ordre' => 4,
-                'ressources' => json_encode([
-                    'Cours avancés',
-                    'Projets complexes',
-                    'Certification intermédiaire'
-                ]),
-            ],
-            [
-                'titre' => 'Certification DQP/CQP',
-                'description' => 'Obtention du Diplôme de Qualification Professionnelle',
-                'type' => 'certification',
-                'duree_semaines' => 8, // 2 mois = 8 semaines
-                'ordre' => 5,
-                'ressources' => json_encode([
-                    'Préparation examen national',
-                    'Mémoire professionnel',
-                    'Jury de certification'
-                ]),
-            ],
-            [
-                'titre' => 'Immersion professionnelle',
-                'description' => 'Stage de longue durée en entreprise',
-                'type' => 'stage',
-                'duree_semaines' => 14, // 3-4 mois = 14 semaines
-                'ordre' => 6,
-                'ressources' => json_encode([
-                    'Stage en entreprise',
-                    'Missions réelles',
-                    'Réseau professionnel'
-                ]),
-            ],
-        ];
-    }
-
-    private function getLicenceSteps(object $profile): array
-    {
-        return [
-            [
-                'titre' => 'Validation des prérequis',
-                'description' => 'Vérification et consolidation des connaissances de base',
-                'type' => 'formation',
-                'duree_semaines' => 4, // 1 mois = 4 semaines
-                'ordre' => 2,
-                'ressources' => json_encode([
-                    'Tests de positionnement avancés',
-                    'Modules de mise à niveau',
-                    'Coaching personnalisé'
-                ]),
-            ],
-            [
-                'titre' => 'Formation théorique approfondie',
-                'description' => 'Maîtrise des concepts avancés du domaine',
-                'type' => 'formation',
-                'duree_semaines' => 24, // 6 mois = 24 semaines
-                'ordre' => 3,
-                'ressources' => json_encode([
-                    'Cours universitaires',
-                    'Travaux de recherche',
-                    'Séminaires spécialisés'
-                ]),
-            ],
-            [
-                'titre' => 'Projets professionnels',
-                'description' => 'Réalisation de projets concrets de niveau professionnel',
-                'type' => 'projet',
-                'duree_semaines' => 12, // 3 mois = 12 semaines
-                'ordre' => 4,
-                'ressources' => json_encode([
-                    'Projet individuel',
-                    'Projet d\'équipe',
-                    'Portfolio professionnel'
-                ]),
-            ],
-            [
-                'titre' => 'Certification professionnelle',
-                'description' => 'Obtention de certifications reconnues par la profession',
-                'type' => 'certification',
-                'duree_semaines' => 8, // 2 mois = 8 semaines
-                'ordre' => 5,
-                'ressources' => json_encode([
-                    'Certifications sectorielles',
-                    'Examens professionnels',
-                    'Accréditations'
-                ]),
-            ],
-            [
-                'titre' => 'Expérience terrain',
-                'description' => 'Stage ou alternance de longue durée',
-                'type' => 'stage',
-                'duree_semaines' => 24, // 6 mois = 24 semaines
-                'ordre' => 6,
-                'ressources' => json_encode([
-                    'Alternance entreprise',
-                    'Missions responsabilisantes',
-                    'Mentorat senior'
-                ]),
-            ],
-        ];
-    }
-
-    private function getMasterSteps(object $profile): array
-    {
-        return [
-            [
-                'titre' => 'Évaluation des compétences',
-                'description' => 'Bilan complet de vos acquis et définition du parcours',
-                'type' => 'formation',
-                'duree_semaines' => 4, // 1 mois = 4 semaines
-                'ordre' => 2,
-                'ressources' => json_encode([
-                    'Évaluation approfondie',
-                    'Plan de développement',
-                    'Objectifs de carrière'
-                ]),
-            ],
-            [
-                'titre' => 'Formation d\'excellence',
-                'description' => 'Parcours de formation de haut niveau',
-                'type' => 'formation',
-                'duree_semaines' => 48, // 12 mois = 48 semaines
-                'ordre' => 3,
-                'ressources' => json_encode([
-                    'Cours de niveau Master',
-                    'Recherche appliquée',
-                    'Publications'
-                ]),
-            ],
-            [
-                'titre' => 'Spécialisation experte',
-                'description' => 'Développement d\'une expertise pointue',
-                'type' => 'formation',
-                'duree_semaines' => 24, // 6 mois = 24 semaines
-                'ordre' => 4,
-                'ressources' => json_encode([
-                    'Formation spécialisée',
-                    'Conférences internationales',
-                    'Réseau d\'experts'
-                ]),
-            ],
-            [
-                'titre' => 'Mémoire/Thèse professionnelle',
-                'description' => 'Travail de recherche ou projet d\'envergure',
+        $diplomaSteps = [
+            'Probatoire' => [
+                'titre' => 'Réussite à l\'examen du Probatoire',
+                'description' => 'Inscrivez-vous en lycée général ou technique au Cameroun, étudiez en Seconde et Première, et passez l\'examen du Probatoire.',
+                'duree_semaines' => 104, // Environ 2 ans
                 'type' => 'diplome',
-                'duree_semaines' => 24, // 6 mois = 24 semaines
-                'ordre' => 5,
-                'ressources' => json_encode([
-                    'Direction de recherche',
-                    'Méthodologie avancée',
-                    'Soutenance'
-                ]),
             ],
-            [
-                'titre' => 'Certifications et accréditations',
-                'description' => 'Obtention des titres professionnels requis',
-                'type' => 'certification',
-                'duree_semaines' => 12, // 3 mois = 12 semaines
-                'ordre' => 6,
-                'ressources' => json_encode([
-                    'Diplôme d\'État',
-                    'Certifications internationales',
-                    'Inscription à l\'ordre professionnel'
-                ]),
+            'BAC' => [
+                'titre' => 'Réussite à l\'examen du Baccalauréat',
+                'description' => 'Étudiez en Terminale au lycée, préparez et passez l\'examen du Baccalauréat (général ou technique) au Cameroun.',
+                'duree_semaines' => 52, // Environ 1 an
+                'type' => 'diplome',
             ],
-            [
-                'titre' => 'Résidence professionnelle',
-                'description' => 'Expérience professionnelle supervisée obligatoire',
-                'type' => 'stage',
-                'duree_semaines' => 48, // 12 mois = 48 semaines
-                'ordre' => 7,
-                'ressources' => json_encode([
-                    'Résidence/Internat',
-                    'Supervision par pairs',
-                    'Évaluation continue'
-                ]),
+            'Licence' => [
+                'titre' => 'Obtention de la Licence',
+                'description' => 'Inscrivez-vous dans une université camerounaise (comme l\'Université de Yaoundé I ou II), étudiez pendant 3 ans et obtenez la Licence.',
+                'duree_semaines' => 156, // Environ 3 ans
+                'type' => 'diplome',
+            ],
+            'Master' => [
+                'titre' => 'Obtention du Master',
+                'description' => 'Poursuivez vos études universitaires au Cameroun pour obtenir le Master (2 ans supplémentaires).',
+                'duree_semaines' => 104, // Environ 2 ans
+                'type' => 'diplome',
             ],
         ];
+
+        $nextLevel = [
+            'BEPC' => 'Probatoire',
+            'Probatoire' => 'BAC',
+            'BAC' => 'Licence',
+            'Licence' => 'Master',
+            'Master' => null,
+        ];
+
+        $profileConfigs = [];
+
+        // Configurations pour les profils vocationnels de niveau bas (priorité CFPAM)
+        $vocLow = [1, 3, 4, 5, 6, 7, 8, 26, 29];
+        foreach ($vocLow as $id) {
+            $profileConfigs[$id] = [
+                'min_level' => 'BEPC',
+                'is_cfpam' => true,
+                'base_steps' => [
+                    [
+                        'type' => 'formation',
+                        'titre' => 'Formation professionnelle au CFPAM',
+                        'description' => 'Inscrivez-vous au pack de formation adapté pour devenir ' . $profiles[$id] . ' au groupe CFPAM au Cameroun, qui propose des formations pratiques et certifiantes adaptées au marché local.',
+                        'duree_semaines' => 52,
+                        'obligatoire' => true,
+                    ],
+                    [
+                        'type' => 'stage',
+                        'titre' => 'Stage professionnel',
+                        'description' => 'Effectuez un stage en entreprise au Cameroun pour appliquer les compétences apprises.',
+                        'duree_semaines' => 12,
+                        'obligatoire' => true,
+                    ],
+                    [
+                        'type' => 'certification',
+                        'titre' => 'Obtention de la certification',
+                        'description' => 'Passez l\'examen de certification professionnelle (comme AQP ou CQP) au Cameroun.',
+                        'duree_semaines' => 4,
+                        'obligatoire' => true,
+                    ],
+                ],
+                'duree_base_mois' => 12,
+            ];
+        }
+
+        // Configurations pour les profils vocationnels de niveau moyen (priorité CFPAM)
+        $vocMid = [2, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+        foreach ($vocMid as $id) {
+            $profileConfigs[$id] = [
+                'min_level' => 'BAC',
+                'is_cfpam' => true,
+                'base_steps' => [
+                    [
+                        'type' => 'formation',
+                        'titre' => 'Formation professionnelle au CFPAM',
+                        'description' => 'Inscrivez-vous au pack de formation adapté pour devenir ' . $profiles[$id] . ' au groupe CFPAM au Cameroun, avec un focus sur les compétences avancées et le marché local.',
+                        'duree_semaines' => 78,
+                        'obligatoire' => true,
+                    ],
+                    [
+                        'type' => 'stage',
+                        'titre' => 'Stage professionnel',
+                        'description' => 'Effectuez un stage en entreprise ou organisation au Cameroun pour gagner en expérience.',
+                        'duree_semaines' => 12,
+                        'obligatoire' => true,
+                    ],
+                    [
+                        'type' => 'certification',
+                        'titre' => 'Obtention de la certification',
+                        'description' => 'Passez l\'examen de certification (comme DQP ou BTS) reconnu au Cameroun.',
+                        'duree_semaines' => 4,
+                        'obligatoire' => true,
+                    ],
+                ],
+                'duree_base_mois' => 18,
+            ];
+        }
+
+        // Configurations personnalisées pour les autres profils
+        $profileConfigs[19] = [
+            'min_level' => 'BAC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Études en droit',
+                    'description' => 'Inscrivez-vous en faculté de sciences juridiques et politiques (comme à l\'Université de Yaoundé II-Soa), obtenez la Licence (3 ans) puis le Master (2 ans) en droit.',
+                    'duree_semaines' => 260,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'certification',
+                    'titre' => 'Concours du Barreau',
+                    'description' => 'Préparez et passez le concours d\'entrée au Barreau du Cameroun.',
+                    'duree_semaines' => 52,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'stage',
+                    'titre' => 'Stage au Barreau',
+                    'description' => 'Effectuez le stage obligatoire de 2 ans dans un cabinet d\'avocats au Cameroun.',
+                    'duree_semaines' => 104,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 84,
+        ];
+
+        $profileConfigs[20] = [
+            'min_level' => 'BAC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Études en médecine',
+                    'description' => 'Inscrivez-vous en faculté de médecine (comme à l\'Université de Yaoundé I ou Douala) via concours, étudiez 7 ans pour le Doctorat en Médecine Générale.',
+                    'duree_semaines' => 364,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'stage',
+                    'titre' => 'Internat et spécialisation optionnelle',
+                    'description' => 'Effectuez l\'internat obligatoire, puis une spécialisation si désiré (3-5 ans supplémentaires).',
+                    'duree_semaines' => 156,
+                    'obligatoire' => false,
+                ],
+            ],
+            'duree_base_mois' => 84,
+        ];
+
+        $profileConfigs[21] = [
+            'min_level' => 'BAC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Formation en soins infirmiers',
+                    'description' => 'Passez le concours d\'entrée dans une école d\'infirmiers (comme les écoles publiques ou privées au Cameroun), formez-vous pendant 3 ans pour le diplôme d\'État.',
+                    'duree_semaines' => 156,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'certification',
+                    'titre' => 'Obtention du diplôme d\'infirmier',
+                    'description' => 'Passez l\'examen d\'État pour être infirmier diplômé d\'État au Cameroun.',
+                    'duree_semaines' => 4,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 36,
+        ];
+
+        $profileConfigs[22] = [
+            'min_level' => 'BAC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Formation à l\'École Normale Supérieure',
+                    'description' => 'Passez le concours de l\'ENS (Yaoundé ou Bambili), formez-vous 3 ans pour DIPES I ou 5 ans pour DIPES II.',
+                    'duree_semaines' => 156,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'experience',
+                    'titre' => 'Enseignement pratique',
+                    'description' => 'Intégrez le système éducatif camerounais et gagnez de l\'expérience en classe.',
+                    'duree_semaines' => 52,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 36,
+        ];
+
+        $profileConfigs[23] = [
+            'min_level' => 'BAC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Formation en journalisme',
+                    'description' => 'Passez le concours de l\'ESSTIC (Yaoundé), obtenez la Licence en journalisme (3 ans).',
+                    'duree_semaines' => 156,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'stage',
+                    'titre' => 'Stage en médias',
+                    'description' => 'Effectuez des stages dans des médias camerounais (CRT, presse, radio).',
+                    'duree_semaines' => 12,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 36,
+        ];
+
+        $profileConfigs[24] = [
+            'min_level' => 'BEPC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Entraînement dans un centre de formation football',
+                    'description' => 'Rejoignez un centre comme l\'Académie des Brasseries ou un club local au Cameroun, entraînez-vous intensivement.',
+                    'duree_semaines' => 104,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'experience',
+                    'titre' => 'Participation à des compétitions',
+                    'description' => 'Jouez en ligues amateurs puis élite au Cameroun, visez la MTN Elite One.',
+                    'duree_semaines' => 156,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'projet',
+                    'titre' => 'Signature de contrat pro',
+                    'description' => 'Signez un contrat avec un club professionnel au Cameroun ou à l\'international.',
+                    'duree_semaines' => 0,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 36,
+        ];
+
+        $profileConfigs[25] = [
+            'min_level' => 'BEPC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Formation en musique',
+                    'description' => 'Inscrivez-vous dans une école de musique au Cameroun ou apprenez via des maîtres, pratiquez un instrument ou le chant.',
+                    'duree_semaines' => 52,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'projet',
+                    'titre' => 'Production musicale',
+                    'description' => 'Composez et enregistrez des morceaux, collaborez avec des artistes camerounais.',
+                    'duree_semaines' => 52,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'experience',
+                    'titre' => 'Performances et networking',
+                    'description' => 'Participez à des festivals comme FOMARIC ou concerts à Yaoundé/Douala.',
+                    'duree_semaines' => 52,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 24,
+        ];
+
+        $profileConfigs[27] = [
+            'min_level' => 'BAC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Études en génie civil',
+                    'description' => 'Passez le concours de l\'École Nationale Supérieure Polytechnique (Yaoundé ou Douala), formez-vous 5 ans pour le diplôme d\'ingénieur.',
+                    'duree_semaines' => 260,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'stage',
+                    'titre' => 'Stage en BTP',
+                    'description' => 'Travaillez sur des chantiers au Cameroun pour de l\'expérience pratique.',
+                    'duree_semaines' => 12,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 60,
+        ];
+
+        $profileConfigs[28] = [
+            'min_level' => 'BAC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Études en pharmacie',
+                    'description' => 'Inscrivez-vous en faculté de pharmacie (comme à l\'Université des Montagnes), étudiez 6 ans pour le Doctorat en Pharmacie.',
+                    'duree_semaines' => 312,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'stage',
+                    'titre' => 'Stage en officine',
+                    'description' => 'Effectuez des stages en pharmacie ou laboratoire au Cameroun.',
+                    'duree_semaines' => 26,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 72,
+        ];
+
+        $profileConfigs[30] = [
+            'min_level' => 'BEPC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Concours d\'entrée à l\'École de Police',
+                    'description' => 'Préparez et passez le concours national de la Police ou Gendarmerie au Cameroun (minimum BEPC, BAC préféré).',
+                    'duree_semaines' => 4,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'formation',
+                    'titre' => 'Formation à l\'École de Police',
+                    'description' => 'Suivez la formation de 2 ans à l\'EMIA ou école de police à Yaoundé.',
+                    'duree_semaines' => 104,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'experience',
+                    'titre' => 'Service actif',
+                    'description' => 'Intégrez les forces de l\'ordre et gagnez de l\'expérience sur le terrain.',
+                    'duree_semaines' => 52,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 24,
+        ];
+
+        $profileConfigs[31] = [
+            'min_level' => 'BEPC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Formation en entrepreneuriat',
+                    'description' => 'Suivez des cours en gestion d\'entreprise via des programmes comme ceux du MINPMEESA ou formations privées au Cameroun.',
+                    'duree_semaines' => 52,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'projet',
+                    'titre' => 'Création d\'entreprise',
+                    'description' => 'Rédigez un business plan, enregistrez votre entreprise via le CFCE au Cameroun (conforme OHADA).',
+                    'duree_semaines' => 12,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'experience',
+                    'titre' => 'Gestion et développement',
+                    'description' => 'Lancez et gérez votre entreprise, cherchez des financements via PJI ou banques camerounaises.',
+                    'duree_semaines' => 52,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 24,
+        ];
+
+        $profileConfigs[32] = [
+            'min_level' => 'BAC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Études en agronomie',
+                    'description' => 'Passez le concours de l\'École Nationale Supérieure d\'Agronomie (FASA à Dschang), formez-vous 5 ans pour ingénieur agronome.',
+                    'duree_semaines' => 260,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'stage',
+                    'titre' => 'Stage agricole',
+                    'description' => 'Travaillez dans une ferme ou institut comme l\'IRAD au Cameroun.',
+                    'duree_semaines' => 12,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 60,
+        ];
+
+        $profileConfigs[33] = [
+            'min_level' => 'BAC',
+            'is_cfpam' => false,
+            'base_steps' => [
+                [
+                    'type' => 'formation',
+                    'titre' => 'Études en architecture',
+                    'description' => 'Inscrivez-vous via concours à une école d\'architecture au Cameroun ou EAMAU (Lomé, mais accessible), étudiez 6 ans.',
+                    'duree_semaines' => 312,
+                    'obligatoire' => true,
+                ],
+                [
+                    'type' => 'certification',
+                    'titre' => 'Inscription à l\'Ordre des Architectes',
+                    'description' => 'Obtenez l\'habilitation de l\'Ordre National des Architectes du Cameroun.',
+                    'duree_semaines' => 4,
+                    'obligatoire' => true,
+                ],
+            ],
+            'duree_base_mois' => 72,
+        ];
+
+        // Création des roadmaps et steps
+        foreach ($profileConfigs as $profileId => $config) {
+            $minLevelIndex = $levelOrder[$config['min_level']];
+            foreach ($levelOrder as $niveauDepart => $index) {
+                if ($index > $minLevelIndex) {
+                    continue;
+                }
+
+                $educationSteps = [];
+                $currentLevel = $niveauDepart;
+                $ordre = 1;
+                while ($levelOrder[$currentLevel] < $minLevelIndex) {
+                    $next = $nextLevel[$currentLevel];
+                    if ($next === null) break;
+                    $step = $diplomaSteps[$next];
+                    $educationSteps[] = [
+                        'titre' => $step['titre'],
+                        'description' => $step['description'],
+                        'duree_semaines' => $step['duree_semaines'],
+                        'type' => $step['type'],
+                        'ordre' => $ordre,
+                        'obligatoire' => true,
+                    ];
+                    $ordre++;
+                    $currentLevel = $next;
+                }
+
+                $baseStepsWithOrdre = [];
+                foreach ($config['base_steps'] as $baseStep) {
+                    $baseStepsWithOrdre[] = [
+                        'titre' => $baseStep['titre'],
+                        'description' => $baseStep['description'],
+                        'duree_semaines' => $baseStep['duree_semaines'],
+                        'type' => $baseStep['type'],
+                        'ordre' => $ordre,
+                        'obligatoire' => $baseStep['obligatoire'],
+                    ];
+                    $ordre++;
+                }
+
+                $totalDureeSemaines = 0;
+                foreach ($educationSteps as $e) {
+                    $totalDureeSemaines += $e['duree_semaines'];
+                }
+                foreach ($baseStepsWithOrdre as $b) {
+                    $totalDureeSemaines += $b['duree_semaines'];
+                }
+                $dureeEstimeeMois = round($totalDureeSemaines / 4.33); // Conversion approximative en mois
+
+                $roadmapId = DB::table('roadmaps')->insertGetId([
+                    'profile_id' => $profileId,
+                    'niveau_depart' => $niveauDepart,
+                    'titre' => 'Roadmap pour devenir ' . $profiles[$profileId] . ' à partir du ' . $niveauDepart,
+                    'description' => 'Parcours personnalisé et adapté au contexte camerounais, en priorisant les formations du groupe CFPAM pour les profils concernés.',
+                    'duree_estimee_mois' => $dureeEstimeeMois,
+                    'active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                foreach ($educationSteps as $step) {
+                    DB::table('roadmap_steps')->insert([
+                        'roadmap_id' => $roadmapId,
+                        'titre' => $step['titre'],
+                        'description' => $step['description'],
+                        'ordre' => $step['ordre'],
+                        'duree_semaines' => $step['duree_semaines'],
+                        'type' => $step['type'],
+                        'pack_recommande_id' => null,
+                        'obligatoire' => $step['obligatoire'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+
+                foreach ($baseStepsWithOrdre as $step) {
+                    DB::table('roadmap_steps')->insert([
+                        'roadmap_id' => $roadmapId,
+                        'titre' => $step['titre'],
+                        'description' => $step['description'],
+                        'ordre' => $step['ordre'],
+                        'duree_semaines' => $step['duree_semaines'],
+                        'type' => $step['type'],
+                        'pack_recommande_id' => null,
+                        'obligatoire' => $step['obligatoire'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+        }
     }
 }
