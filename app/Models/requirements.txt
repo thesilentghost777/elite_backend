@@ -1,0 +1,1671 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class CareerProfile extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'nom',
+        'slug',
+        'description',
+        'image_url',
+        'secteur',
+        'debouches',
+        'niveau_minimum',
+        'is_cfpam',
+        'active',
+    ];
+
+    protected $casts = [
+        'debouches' => 'array',
+        'is_cfpam' => 'boolean',
+        'active' => 'boolean',
+    ];
+
+    public function matchings()
+    {
+        return $this->hasMany(ProfileMatching::class, 'profile_id');
+    }
+
+    public function answers()
+    {
+        return $this->belongsToMany(CorrespondenceAnswer::class, 'profile_matchings', 'profile_id', 'answer_id')
+            ->withPivot('poids')
+            ->withTimestamps();
+    }
+
+    public function roadmaps()
+    {
+        return $this->hasMany(Roadmap::class, 'profile_id');
+    }
+
+    public function packs()
+    {
+        return $this->belongsToMany(Pack::class, 'pack_profiles', 'profile_id', 'pack_id')
+            ->withPivot('priorite')
+            ->withTimestamps()
+            ->orderByPivot('priorite', 'desc');
+    }
+
+    public function userResults()
+    {
+        return $this->hasMany(UserProfileResult::class, 'profile_id');
+    }
+
+    public function userChoices()
+    {
+        return $this->hasMany(UserProfileChoice::class, 'profile_id');
+    }
+
+    public function getRoadmapForLevel(string $niveau)
+    {
+        return $this->roadmaps()->where('niveau_depart', $niveau)->first();
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+
+    public function scopeCfpam($query)
+    {
+        return $query->where('is_cfpam', true);
+    }
+
+    public function scopePopular($query)
+    {
+        return $query->where('is_cfpam', false);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class CashCode extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'code',
+        'montant_fcfa',
+        'points',
+        'created_by',
+        'assigned_to',
+        'used_by',
+        'used_at',
+        'expires_at',
+        'active',
+    ];
+
+    protected $casts = [
+        'montant_fcfa' => 'decimal:2',
+        'used_at' => 'datetime',
+        'expires_at' => 'datetime',
+        'active' => 'boolean',
+    ];
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function assignedUser()
+    {
+        return $this->belongsTo(EliteUser::class, 'assigned_to');
+    }
+
+    public function usedByUser()
+    {
+        return $this->belongsTo(EliteUser::class, 'used_by');
+    }
+
+    public function isValid(): bool
+    {
+        return $this->active && 
+               !$this->used_at && 
+               ($this->expires_at === null || $this->expires_at->isFuture());
+    }
+
+    public function canBeUsedBy(EliteUser $user): bool
+    {
+        if (!$this->isValid()) {
+            return false;
+        }
+
+        // Si assigné à un utilisateur spécifique
+        if ($this->assigned_to !== null && $this->assigned_to !== $user->id) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static function generateCode(): string
+    {
+        do {
+            $code = 'CASH-' . strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 8));
+        } while (self::where('code', $code)->exists());
+
+        return $code;
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Category extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'nom',
+        'slug',
+        'description',
+        'image_url',
+        'couleur',
+        'ordre',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function packs()
+    {
+        return $this->hasMany(Pack::class, 'category_id')->orderBy('ordre');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Chapter extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'module_id',
+        'nom',
+        'description',
+        'ordre',
+        'note_passage',
+        'note_parrainage',
+        'parrainages_requis',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function module()
+    {
+        return $this->belongsTo(Module::class, 'module_id');
+    }
+
+    public function lessons()
+    {
+        return $this->hasMany(Lesson::class, 'chapter_id')->orderBy('ordre');
+    }
+
+    public function quizzes()
+    {
+        return $this->hasMany(Quiz::class, 'chapter_id')->orderBy('ordre');
+    }
+
+    public function unlocks()
+    {
+        return $this->hasMany(ChapterUnlock::class, 'chapter_id');
+    }
+
+    public function isUnlockedFor(EliteUser $user): bool
+    {
+        // Premier chapitre toujours débloqué
+        if ($this->ordre === 1) {
+            return true;
+        }
+
+        return $this->unlocks()->where('user_id', $user->id)->exists();
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class ChapterUnlock extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'chapter_id',
+        'unlock_method',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(EliteUser::class, 'user_id');
+    }
+
+    public function chapter()
+    {
+        return $this->belongsTo(Chapter::class, 'chapter_id');
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Concours extends Model
+{
+    use HasFactory;
+
+    protected $table = 'concours';
+
+    protected $fillable = [
+        'titre',
+        'description',
+        'organisateur',
+        'date_debut',
+        'date_fin',
+        'date_limite_inscription',
+        'conditions',
+        'lien_inscription',
+        'active',
+    ];
+
+    protected $casts = [
+        'date_debut' => 'date',
+        'date_fin' => 'date',
+        'date_limite_inscription' => 'date',
+        'active' => 'boolean',
+    ];
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+
+    public function scopeEnCours($query)
+    {
+        return $query->where('date_debut', '<=', now())
+                     ->where('date_fin', '>=', now());
+    }
+
+    public function scopeInscriptionOuverte($query)
+    {
+        return $query->where('date_limite_inscription', '>=', now());
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class CorrespondenceAnswer extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'question_id',
+        'texte',
+        'ordre',
+    ];
+
+    public function question()
+    {
+        return $this->belongsTo(CorrespondenceQuestion::class, 'question_id');
+    }
+
+    public function profileMatchings()
+    {
+        return $this->hasMany(ProfileMatching::class, 'answer_id');
+    }
+
+    public function profiles()
+    {
+        return $this->belongsToMany(CareerProfile::class, 'profile_matchings', 'answer_id', 'profile_id')
+            ->withPivot('poids')
+            ->withTimestamps();
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class CorrespondenceCategory extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'nom',
+        'description',
+        'ordre',
+    ];
+
+    public function questions()
+    {
+        return $this->hasMany(CorrespondenceQuestion::class, 'category_id')->orderBy('ordre');
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class CorrespondenceQuestion extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'category_id',
+        'question',
+        'type',
+        'ordre',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function category()
+    {
+        return $this->belongsTo(CorrespondenceCategory::class, 'category_id');
+    }
+
+    public function answers()
+    {
+        return $this->hasMany(CorrespondenceAnswer::class, 'question_id')->orderBy('ordre');
+    }
+
+    public function userAnswers()
+    {
+        return $this->hasMany(UserCorrespondence::class, 'question_id');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+
+class EliteUser extends Authenticatable
+{
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+
+    protected $fillable = [
+        'nom',
+        'prenom',
+        'telephone',
+        'email',
+        'dernier_diplome',
+        'ville',
+        'password',
+        'referral_code',
+        'referred_by',
+        'solde_points',
+        'correspondence_completed',
+        'profile_chosen',
+        'parcours_mode',
+        'photo_url',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'correspondence_completed' => 'boolean',
+        'profile_chosen' => 'boolean',
+        'solde_points' => 'decimal:2',
+    ];
+
+    // Génère un code de parrainage unique
+    public static function generateReferralCode(): string
+    {
+        do {
+            $code = 'EL' . strtoupper(substr(md5(uniqid()), 0, 6));
+        } while (self::where('referral_code', $code)->exists());
+
+        return $code;
+    }
+
+    // Relations
+    public function parrain()
+    {
+        return $this->belongsTo(EliteUser::class, 'referred_by', 'referral_code');
+    }
+
+    public function filleuls()
+    {
+        return $this->hasMany(EliteUser::class, 'referred_by', 'referral_code');
+    }
+
+    public function referralHistory()
+    {
+        return $this->hasMany(ReferralHistory::class, 'parrain_id');
+    }
+
+    public function correspondences()
+    {
+        return $this->hasMany(UserCorrespondence::class, 'user_id');
+    }
+
+    public function profileResults()
+    {
+        return $this->hasMany(UserProfileResult::class, 'user_id');
+    }
+
+    public function profileChoice()
+    {
+        return $this->hasOne(UserProfileChoice::class, 'user_id');
+    }
+
+    public function packs()
+    {
+        return $this->hasMany(UserPack::class, 'user_id');
+    }
+
+    public function lessonProgress()
+    {
+        return $this->hasMany(LessonProgress::class, 'user_id');
+    }
+
+    public function quizResults()
+    {
+        return $this->hasMany(QuizResult::class, 'user_id');
+    }
+
+    public function chapterUnlocks()
+    {
+        return $this->hasMany(ChapterUnlock::class, 'user_id');
+    }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class, 'user_id');
+    }
+
+    public function sentTransfers()
+    {
+        return $this->hasMany(Transfer::class, 'sender_id');
+    }
+
+    public function receivedTransfers()
+    {
+        return $this->hasMany(Transfer::class, 'receiver_id');
+    }
+
+    // Helpers
+    public function getFullNameAttribute(): string
+    {
+        return "{$this->prenom} {$this->nom}";
+    }
+
+    public function hasCompletedCorrespondence(): bool
+    {
+        return $this->correspondence_completed;
+    }
+
+    public function hasChosenProfile(): bool
+    {
+        return $this->profile_chosen;
+    }
+
+    public function getChosenProfile()
+    {
+        return $this->profileChoice?->profile;
+    }
+
+    public function hasPack(int $packId): bool
+    {
+        return $this->packs()->where('pack_id', $packId)->exists();
+    }
+
+    public function canAfford(int $points): bool
+    {
+        return $this->solde_points >= $points;
+    }
+
+    public function addPoints(float $points): void
+    {
+        $this->increment('solde_points', $points);
+    }
+
+    public function deductPoints(float $points): bool
+    {
+        if (!$this->canAfford($points)) {
+            return false;
+        }
+        $this->decrement('solde_points', $points);
+        return true;
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Faq extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'category_id',
+        'question',
+        'reponse',
+        'ordre',
+        'vues',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function category()
+    {
+        return $this->belongsTo(FaqCategory::class, 'category_id');
+    }
+
+    public function incrementVues(): void
+    {
+        $this->increment('vues');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class FaqCategory extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'nom',
+        'icone',
+        'ordre',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function faqs()
+    {
+        return $this->hasMany(Faq::class, 'category_id')->orderBy('ordre');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class JobOffer extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'titre',
+        'description',
+        'entreprise',
+        'ville',
+        'type_contrat',
+        'salaire_min',
+        'salaire_max',
+        'date_limite',
+        'contact_email',
+        'contact_telephone',
+        'active',
+    ];
+
+    protected $casts = [
+        'salaire_min' => 'decimal:2',
+        'salaire_max' => 'decimal:2',
+        'date_limite' => 'date',
+        'active' => 'boolean',
+    ];
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+
+    public function scopeNotExpired($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('date_limite')
+              ->orWhere('date_limite', '>=', now());
+        });
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Lesson extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'chapter_id',
+        'titre',
+        'contenu_texte',
+        'url_web',
+        'url_video',
+        'ordre',
+        'duree_minutes',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function chapter()
+    {
+        return $this->belongsTo(Chapter::class, 'chapter_id');
+    }
+
+    public function progress()
+    {
+        return $this->hasMany(LessonProgress::class, 'lesson_id');
+    }
+
+    public function isCompletedBy(EliteUser $user): bool
+    {
+        return $this->progress()
+            ->where('user_id', $user->id)
+            ->where('completed', true)
+            ->exists();
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class LessonProgress extends Model
+{
+    use HasFactory;
+
+    protected $table = 'lesson_progress';
+
+    protected $fillable = [
+        'user_id',
+        'lesson_id',
+        'completed',
+        'temps_passe_secondes',
+        'date_completion',
+    ];
+
+    protected $casts = [
+        'completed' => 'boolean',
+        'date_completion' => 'datetime',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(EliteUser::class, 'user_id');
+    }
+
+    public function lesson()
+    {
+        return $this->belongsTo(Lesson::class, 'lesson_id');
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Module extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'pack_id',
+        'nom',
+        'description',
+        'type',
+        'ordre',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function pack()
+    {
+        return $this->belongsTo(Pack::class, 'pack_id');
+    }
+
+    public function chapters()
+    {
+        return $this->hasMany(Chapter::class, 'module_id')->orderBy('ordre');
+    }
+
+    public function getTotalLessonsAttribute(): int
+    {
+        return $this->chapters->flatMap(fn($c) => $c->lessons)->count();
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Pack extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'category_id',
+        'nom',
+        'slug',
+        'description',
+        'image_url',
+        'niveau_requis',
+        'durees_disponibles',
+        'diplomes_possibles',
+        'prix_points',
+        'debouches',
+        'ordre',
+        'active',
+    ];
+
+    protected $casts = [
+        'durees_disponibles' => 'array',
+        'diplomes_possibles' => 'array',
+        'debouches' => 'array',
+        'active' => 'boolean',
+    ];
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
+
+    public function modules()
+    {
+        return $this->hasMany(Module::class, 'pack_id')->orderBy('ordre');
+    }
+
+    public function profiles()
+    {
+        return $this->belongsToMany(CareerProfile::class, 'pack_profiles', 'pack_id', 'profile_id')
+            ->withPivot('priorite')
+            ->withTimestamps();
+    }
+
+    public function userPacks()
+    {
+        return $this->hasMany(UserPack::class, 'pack_id');
+    }
+
+    public function roadmapSteps()
+    {
+        return $this->hasMany(RoadmapStep::class, 'pack_recommande_id');
+    }
+
+    public function getTotalLessonsAttribute(): int
+    {
+        return $this->modules()
+            ->with('chapters.lessons')
+            ->get()
+            ->flatMap(fn($m) => $m->chapters)
+            ->flatMap(fn($c) => $c->lessons)
+            ->count();
+    }
+
+    public function getTotalDurationAttribute(): int
+    {
+        return $this->modules()
+            ->with('chapters.lessons')
+            ->get()
+            ->flatMap(fn($m) => $m->chapters)
+            ->flatMap(fn($c) => $c->lessons)
+            ->sum('duree_minutes');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+
+    public function scopeForProfile($query, int $profileId)
+    {
+        return $query->whereHas('profiles', function ($q) use ($profileId) {
+            $q->where('career_profiles.id', $profileId);
+        })->orderByRaw('(SELECT priorite FROM pack_profiles WHERE pack_profiles.pack_id = packs.id AND pack_profiles.profile_id = ?) DESC', [$profileId]);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class PackProfile extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'pack_id',
+        'profile_id',
+        'priorite',
+    ];
+
+    public function pack()
+    {
+        return $this->belongsTo(Pack::class, 'pack_id');
+    }
+
+    public function profile()
+    {
+        return $this->belongsTo(CareerProfile::class, 'profile_id');
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class ProfileMatching extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'answer_id',
+        'profile_id',
+        'poids',
+    ];
+
+    public function answer()
+    {
+        return $this->belongsTo(CorrespondenceAnswer::class, 'answer_id');
+    }
+
+    public function profile()
+    {
+        return $this->belongsTo(CareerProfile::class, 'profile_id');
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Quiz extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'chapter_id',
+        'titre',
+        'description',
+        'note_totale',
+        'duree_minutes',
+        'ordre',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function chapter()
+    {
+        return $this->belongsTo(Chapter::class, 'chapter_id');
+    }
+
+    public function questions()
+    {
+        return $this->hasMany(QuizQuestion::class, 'quiz_id')->orderBy('ordre');
+    }
+
+    public function results()
+    {
+        return $this->hasMany(QuizResult::class, 'quiz_id');
+    }
+
+    public function getMaxPointsAttribute(): int
+    {
+        return $this->questions()->sum('points');
+    }
+
+    public function getBestResultFor(EliteUser $user)
+    {
+        return $this->results()
+            ->where('user_id', $user->id)
+            ->orderByDesc('note')
+            ->first();
+    }
+
+    public function getAttemptsCount(EliteUser $user): int
+    {
+        return $this->results()->where('user_id', $user->id)->count();
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class QuizAnswer extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'question_id',
+        'texte',
+        'est_correcte',
+        'ordre',
+    ];
+
+    protected $casts = [
+        'est_correcte' => 'boolean',
+    ];
+
+    public function question()
+    {
+        return $this->belongsTo(QuizQuestion::class, 'question_id');
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class QuizQuestion extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'quiz_id',
+        'enonce',
+        'image_url',
+        'type',
+        'explication',
+        'ordre',
+        'points',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function quiz()
+    {
+        return $this->belongsTo(Quiz::class, 'quiz_id');
+    }
+
+    public function answers()
+    {
+        return $this->hasMany(QuizAnswer::class, 'question_id')->orderBy('ordre');
+    }
+
+    public function correctAnswers()
+    {
+        return $this->answers()->where('est_correcte', true);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class QuizResult extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'quiz_id',
+        'note',
+        'total_questions',
+        'bonnes_reponses',
+        'reussi',
+        'reponses_utilisateur',
+        'tentative',
+        'action_requise',
+        'parrainages_effectues',
+    ];
+
+    protected $casts = [
+        'note' => 'decimal:2',
+        'reussi' => 'boolean',
+        'reponses_utilisateur' => 'array',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(EliteUser::class, 'user_id');
+    }
+
+    public function quiz()
+    {
+        return $this->belongsTo(Quiz::class, 'quiz_id');
+    }
+
+    public function getNoteOn20Attribute(): float
+    {
+        $maxPoints = $this->quiz->max_points;
+        return $maxPoints > 0 ? round(($this->note / $maxPoints) * 20, 2) : 0;
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class ReferralHistory extends Model
+{
+    use HasFactory;
+
+    protected $table = 'referral_history';
+
+    protected $fillable = [
+        'parrain_id',
+        'filleul_id',
+        'points_gagnes',
+    ];
+
+    public function parrain()
+    {
+        return $this->belongsTo(EliteUser::class, 'parrain_id');
+    }
+
+    public function filleul()
+    {
+        return $this->belongsTo(EliteUser::class, 'filleul_id');
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Roadmap extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'profile_id',
+        'niveau_depart',
+        'titre',
+        'description',
+        'duree_estimee_mois',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function profile()
+    {
+        return $this->belongsTo(CareerProfile::class, 'profile_id');
+    }
+
+    public function steps()
+    {
+        return $this->hasMany(RoadmapStep::class, 'roadmap_id')->orderBy('ordre');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class RoadmapStep extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'roadmap_id',
+        'titre',
+        'description',
+        'ordre',
+        'duree_semaines',
+        'type',
+        'pack_recommande_id',
+        'obligatoire',
+    ];
+
+    protected $casts = [
+        'obligatoire' => 'boolean',
+    ];
+
+    public function roadmap()
+    {
+        return $this->belongsTo(Roadmap::class, 'roadmap_id');
+    }
+
+    public function packRecommande()
+    {
+        return $this->belongsTo(Pack::class, 'pack_recommande_id');
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
+
+class SystemSetting extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'key',
+        'value',
+        'type',
+        'description',
+    ];
+
+    public static function get(string $key, $default = null)
+    {
+        return Cache::remember("setting_{$key}", 3600, function () use ($key, $default) {
+            $setting = self::where('key', $key)->first();
+            
+            if (!$setting) {
+                return $default;
+            }
+
+            return match ($setting->type) {
+                'integer' => (int) $setting->value,
+                'boolean' => filter_var($setting->value, FILTER_VALIDATE_BOOLEAN),
+                'json' => json_decode($setting->value, true),
+                'float' => (float) $setting->value,
+                default => $setting->value,
+            };
+        });
+    }
+
+    public static function set(string $key, $value, string $type = 'string', ?string $description = null): void
+    {
+        $valueToStore = $type === 'json' ? json_encode($value) : (string) $value;
+
+        self::updateOrCreate(
+            ['key' => $key],
+            [
+                'value' => $valueToStore,
+                'type' => $type,
+                'description' => $description,
+            ]
+        );
+
+        Cache::forget("setting_{$key}");
+    }
+
+    // Méthodes utilitaires pour les paramètres courants
+    public static function getPointsPerReferral(): int
+    {
+        return self::get('points_per_referral', 1);
+    }
+
+    public static function getFcfaPerPoint(): int
+    {
+        return self::get('fcfa_per_point', 500);
+    }
+
+    public static function getDefaultReferralCode(): string
+    {
+        return self::get('default_referral_code', 'ELITE2024');
+    }
+
+    public static function getDefaultPackPrice(): int
+    {
+        return self::get('default_pack_price', 50);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
+
+class Transaction extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'type',
+        'montant_fcfa',
+        'points',
+        'reference',
+        'description',
+        'metadata',
+        'statut',
+    ];
+
+    protected $casts = [
+        'montant_fcfa' => 'decimal:2',
+        'points' => 'decimal:2',
+        'metadata' => 'array',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(EliteUser::class, 'user_id');
+    }
+
+    public static function generateReference(): string
+    {
+        return 'TXN-' . strtoupper(Str::random(12));
+    }
+
+    public function scopeCompleted($query)
+    {
+        return $query->where('statut', 'complete');
+    }
+
+    public function scopeForUser($query, int $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    public function scopeOfType($query, string $type)
+    {
+        return $query->where('type', $type);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Transfer extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'sender_id',
+        'receiver_id',
+        'points',
+        'motif',
+        'transaction_envoi_id',
+        'transaction_recu_id',
+    ];
+
+    protected $casts = [
+        'points' => 'decimal:2',
+    ];
+
+    public function sender()
+    {
+        return $this->belongsTo(EliteUser::class, 'sender_id');
+    }
+
+    public function receiver()
+    {
+        return $this->belongsTo(EliteUser::class, 'receiver_id');
+    }
+
+    public function transactionEnvoi()
+    {
+        return $this->belongsTo(Transaction::class, 'transaction_envoi_id');
+    }
+
+    public function transactionRecu()
+    {
+        return $this->belongsTo(Transaction::class, 'transaction_recu_id');
+    }
+}
+<?php
+
+namespace App\Models;
+
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+
+class User extends Authenticatable
+{
+    /** @use HasFactory<\Database\Factories\UserFactory> */
+    use HasFactory, Notifiable;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class UserCorrespondence extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'question_id',
+        'answer_id',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(EliteUser::class, 'user_id');
+    }
+
+    public function question()
+    {
+        return $this->belongsTo(CorrespondenceQuestion::class, 'question_id');
+    }
+
+    public function answer()
+    {
+        return $this->belongsTo(CorrespondenceAnswer::class, 'answer_id');
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class UserPack extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'pack_id',
+        'duree_choisie',
+        'prix_paye',
+        'statut',
+        'progression',
+        'date_achat',
+        'date_expiration',
+    ];
+
+    protected $casts = [
+        'prix_paye' => 'decimal:2',
+        'progression' => 'decimal:2',
+        'date_achat' => 'datetime',
+        'date_expiration' => 'datetime',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(EliteUser::class, 'user_id');
+    }
+
+    public function pack()
+    {
+        return $this->belongsTo(Pack::class, 'pack_id');
+    }
+
+    public function isActive(): bool
+    {
+        return $this->statut === 'actif' && 
+               ($this->date_expiration === null || $this->date_expiration->isFuture());
+    }
+
+    public function calculateProgression(): float
+    {
+        $pack = $this->pack()->with('modules.chapters.lessons')->first();
+        $totalLessons = 0;
+        $completedLessons = 0;
+
+        foreach ($pack->modules as $module) {
+            foreach ($module->chapters as $chapter) {
+                foreach ($chapter->lessons as $lesson) {
+                    $totalLessons++;
+                    if ($lesson->isCompletedBy($this->user)) {
+                        $completedLessons++;
+                    }
+                }
+            }
+        }
+
+        return $totalLessons > 0 ? round(($completedLessons / $totalLessons) * 100, 2) : 0;
+    }
+
+    public function updateProgression(): void
+    {
+        $this->progression = $this->calculateProgression();
+        if ($this->progression >= 100) {
+            $this->statut = 'complete';
+        }
+        $this->save();
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class UserProfileChoice extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'profile_id',
+        'from_recommendations',
+    ];
+
+    protected $casts = [
+        'from_recommendations' => 'boolean',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(EliteUser::class, 'user_id');
+    }
+
+    public function profile()
+    {
+        return $this->belongsTo(CareerProfile::class, 'profile_id');
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class UserProfileResult extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'profile_id',
+        'score',
+        'rang',
+    ];
+
+    protected $casts = [
+        'score' => 'decimal:2',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(EliteUser::class, 'user_id');
+    }
+
+    public function profile()
+    {
+        return $this->belongsTo(CareerProfile::class, 'profile_id');
+    }
+}
+#!/bin/bash
+path="./"
+
+# Parcours tous les fichiers du répertoire
+for file in "$path"/* ; do
+    # Vérifie si c'est un fichier régulier
+    if [ -f "$file" ]; then
+        cat "$file" >> requirements.txt
+    fi
+done
