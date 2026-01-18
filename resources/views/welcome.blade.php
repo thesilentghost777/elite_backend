@@ -73,7 +73,7 @@
                     <a href="#formations" class="text-gray-300 hover:text-white transition-colors">Formations</a>
                     <a href="#faq" class="text-gray-300 hover:text-white transition-colors">FAQ</a>
                 </div>
-                <a href="#" class="btn-shine px-6 py-3 bg-gradient-to-r from-elite-accent to-pink-600 rounded-full font-semibold hover:shadow-lg hover:shadow-elite-accent/50 transition-all duration-300">
+                <a href="https://play.google.com/store/apps/details?id=com.ghost777xsorganization.elite20" class="btn-shine px-6 py-3 bg-gradient-to-r from-elite-accent to-pink-600 rounded-full font-semibold hover:shadow-lg hover:shadow-elite-accent/50 transition-all duration-300">
                     <i class="fas fa-download mr-2"></i>Télécharger
                 </a>
             </div>
@@ -239,7 +239,7 @@
         <div class="max-w-7xl mx-auto px-4 text-center">
             <h2 class="text-4xl font-bold mb-6">Prêt à transformer votre <span class="gradient-text">avenir</span>?</h2>
             <p class="text-xl text-gray-300 mb-10 max-w-2xl mx-auto">Rejoignez des milliers de Camerounais qui ont choisi Elite 2.0!</p>
-            <a href="#" class="btn-shine px-10 py-5 bg-gradient-to-r from-elite-accent to-pink-600 rounded-full font-bold text-xl inline-flex items-center">
+            <a href="https://play.google.com/store/apps/details?id=com.ghost777xsorganization.elite20" class="btn-shine px-10 py-5 bg-gradient-to-r from-elite-accent to-pink-600 rounded-full font-bold text-xl inline-flex items-center">
                 <i class="fas fa-rocket mr-3"></i>Télécharger l'application
             </a>
             <div class="mt-16 grid md:grid-cols-3 gap-8 max-w-3xl mx-auto">
