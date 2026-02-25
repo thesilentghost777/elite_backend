@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('prenom');
             $table->string('telephone')->unique();
             $table->string('email')->unique()->nullable();
-            $table->enum('dernier_diplome', ['BEPC', 'Probatoire', 'BAC', 'Licence', 'Master']);
+            $table->enum('dernier_diplome', ['primaire', 'secondaire', 'universitaire']);
             $table->string('ville');
             $table->string('password');
             $table->string('referral_code')->unique(); // Code de parrainage personnel
@@ -464,6 +464,57 @@ return new class extends Migration
         Schema::table('roadmap_steps', function (Blueprint $table) {
             $table->foreign('pack_recommande_id')->references('id')->on('packs')->onDelete('set null');
         });
+
+        // Offres de financement
+        Schema::create('financements', function (Blueprint $table) {
+            $table->id();
+            $table->string('titre');
+            $table->text('description');
+            $table->string('organisme');
+            $table->enum('type', ['bourse', 'subvention', 'pret', 'investissement', 'autre'])->default('autre');
+            $table->decimal('montant_min', 12, 2)->nullable();
+            $table->decimal('montant_max', 12, 2)->nullable();
+            $table->date('date_limite')->nullable();
+            $table->text('conditions_eligibilite')->nullable();
+            $table->string('lien_externe')->nullable();
+            $table->string('contact_telephone')->nullable();
+            $table->string('contact_email')->nullable();
+            $table->boolean('active')->default(true);
+            $table->timestamps();
+        });
+
+        // Bibliothèque de livres PDF
+        Schema::create('bibliotheque', function (Blueprint $table) {
+            $table->id();
+            $table->string('titre');
+            $table->string('auteur')->nullable();
+            $table->text('description')->nullable();
+            $table->enum('categorie', [
+                'entrepreneuriat', 'informatique', 'marketing', 'comptabilite',
+                'gestion', 'droit', 'sciences', 'langues', 'developpement_personnel',
+                'commerce', 'autre'
+            ])->default('autre');
+            $table->string('fichier_pdf'); // chemin vers le PDF
+            $table->string('cover_image')->nullable();
+            $table->integer('nombre_pages')->nullable();
+            $table->integer('vues')->default(0);
+            $table->integer('telechargements')->default(0);
+            $table->boolean('active')->default(true);
+            $table->timestamps();
+        });
+
+        // Groupes communautaires
+        Schema::create('community_groups', function (Blueprint $table) {
+            $table->id();
+            $table->string('nom');
+            $table->text('description');
+            $table->string('icone')->nullable(); // emoji ou classe d'icône
+            $table->string('whatsapp_number')->default('237659292001');
+            $table->integer('membres_count')->default(0);
+            $table->boolean('active')->default(true);
+            $table->timestamps();
+        });
+    
     }
 
     public function down(): void

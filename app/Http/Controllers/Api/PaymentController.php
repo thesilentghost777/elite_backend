@@ -25,7 +25,7 @@ class PaymentController extends Controller
     public function initiateDeposit(Request $request): JsonResponse
     {
         $request->validate([
-            'montant_fcfa' => 'required|numeric|min:650',
+            'montant_fcfa' => 'required|numeric|in:1000,2000,3000,5000,10000,20000,30000,50000,75000,100000',
         ]);
 
         try {
@@ -37,7 +37,7 @@ class PaymentController extends Controller
                 'user_id' => $user->id,
                 'type' => 'depot',
                 'montant_fcfa' => $montantFcfa,
-                'points' => $montantFcfa / config('app.fcfa_per_point', 650),
+                'points' => $this->getDepositPoints($montantFcfa),
                 'reference' => Transaction::generateReference(),
                 'description' => "Dépôt de {$montantFcfa} FCFA en cours",
                 'statut' => 'en_attente',
@@ -60,7 +60,7 @@ class PaymentController extends Controller
             $result = $this->moneyFusion->initiatePayment($paymentData);
 
             if (!$result['success'] || !$result['payment_url']) {
-                $transaction->update(['statut' => 'failed']);
+                $transaction->update(['statut' => 'echoue']);
                 
                 return response()->json([
                     'success' => false,
@@ -98,6 +98,25 @@ class PaymentController extends Controller
             ], 500);
         }
     }
+
+     // Ajouter cette méthode privée
+private function getDepositPoints(float $montantFcfa): int
+{
+    $bareme = [
+        1000  => 3,
+        2000  => 7,
+        3000  => 10,
+        5000  => 17,
+        10000 => 35,
+        20000 => 72,
+        30000 => 110,
+        50000 => 185,
+        75000 => 280,
+        100000 => 375,
+    ];
+
+    return $bareme[(int) $montantFcfa] ?? (int) ($montantFcfa / 650);
+}
 
     /**
      * Vérifier le statut d'un paiement
@@ -210,9 +229,9 @@ class PaymentController extends Controller
                         break;
 
                     case 'payin.session.cancelled':
-                        if ($transaction->statut !== 'failed') {
+                        if ($transaction->statut !== 'echoue') {
                             $transaction->update([
-                                'statut' => 'failed',
+                                'statut' => 'echoue',
                                 'metadata' => array_merge($transaction->metadata ?? [], [
                                     'cancelled_at' => now()->toISOString(),
                                     'webhook_data' => $request->all(),

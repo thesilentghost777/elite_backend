@@ -36,8 +36,7 @@ class PaymentService
      */
     public function deposit(EliteUser $user, float $montantFcfa): array
     {
-        $fcfaPerPoint = SystemSetting::getFcfaPerPoint();
-        $points = $montantFcfa / $fcfaPerPoint;
+        $points = $this->getDepositPoints($montantFcfa);
 
         return DB::transaction(function () use ($user, $montantFcfa, $points) {
             $paymentSuccess = true;
@@ -71,6 +70,25 @@ class PaymentService
             ];
         });
     }
+
+    // Ajouter cette méthode privée
+private function getDepositPoints(float $montantFcfa): int
+{
+    $bareme = [
+        1000  => 3,
+        2000  => 7,
+        3000  => 10,
+        5000  => 17,
+        10000 => 35,
+        20000 => 72,
+        30000 => 110,
+        50000 => 185,
+        75000 => 280,
+        100000 => 375,
+    ];
+
+    return $bareme[(int) $montantFcfa] ?? (int) ($montantFcfa / 650);
+}
 
     /**
      * Utiliser un code caisse

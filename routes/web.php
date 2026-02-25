@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\CorrespondenceController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\TransactionController;
+use App\Http\Controllers\OpportunityController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -97,6 +98,28 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('settings/payments', [TransactionController::class, 'settings'])->name('settings.payments');
     Route::put('settings/payments', [TransactionController::class, 'updateSettings'])->name('settings.payments.update');
 });
+
+// ─── Routes publiques : soumission d'offres ───
+Route::prefix('soumettre')->name('public.submit.')->group(function () {
+    Route::get('/', [OpportunityController::class, 'publicSubmitForm'])->name('form');
+    Route::post('/emploi', [OpportunityController::class, 'publicSubmitJob'])->name('job');
+    Route::post('/concours', [OpportunityController::class, 'publicSubmitConcours'])->name('concours');
+    Route::post('/financement', [OpportunityController::class, 'publicSubmitFinancement'])->name('financement');
+
+    Route::get('/livre', [OpportunityController::class, 'publicBookForm'])->name('book-form');
+    Route::post('/livre', [OpportunityController::class, 'publicSubmitBook'])->name('book');
+});
+
+// ─── Routes Elite Users : consultation ───
+Route::prefix('espace')->name('elite.')->group(function () {
+    Route::get('/emplois-concours', [OpportunityController::class, 'emploisConcours'])->name('emplois-concours');
+    Route::get('/financements', [OpportunityController::class, 'financements'])->name('financements');
+    Route::get('/bibliotheque', [OpportunityController::class, 'bibliotheque'])->name('bibliotheque');
+    Route::get('/bibliotheque/{livre}', [OpportunityController::class, 'viewBook'])->name('bibliotheque.view');
+    Route::get('/bibliotheque/{livre}/download', [OpportunityController::class, 'downloadBook'])->name('bibliotheque.download');
+    Route::get('/communaute', [OpportunityController::class, 'communaute'])->name('communaute');
+});
+
 
 // Auth routes (use Laravel Breeze or Fortify)
 require __DIR__.'/auth.php';

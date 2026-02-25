@@ -20,8 +20,7 @@ class AuthController extends Controller
             'prenom' => 'required|string|max:255',
             'telephone' => 'required|string|unique:elite_users,telephone',
             'email' => 'nullable|email|unique:elite_users,email',
-            'dernier_diplome' => 'required|in:BEPC,Probatoire,BAC,Licence,Master',
-            'ville' => 'required|string|max:255',
+            'dernier_diplome' => 'required|in:primaire,secondaire,universitaire',            'ville' => 'required|string|max:255',
             'password' => 'required|string|min:6|confirmed',
             'referral_code' => 'nullable|string',
         ]);

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\FaqController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\TrialController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -61,6 +62,13 @@ Route::get('/faq/{id}', [FaqController::class, 'show']);
 // ROUTES AUTHENTIFIÉES
 // ============================================
 Route::middleware('auth:sanctum')->group(function () {
+
+   Route::get('/trial/status',   [TrialController::class, 'status']);
+    Route::post('/trial/start',   [TrialController::class, 'start']);
+    Route::post('/trial/activate',[TrialController::class, 'activate']);
+
+
+
     // Auth
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/profile', [AuthController::class, 'profile']);
