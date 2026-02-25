@@ -36,6 +36,6 @@ return [
     ],
 
     'moneyfusion' => [
-        'api_url' => env('MONEYFUSION_API_URL', 'https://www.pay.moneyfusion.net/nkap_dey/663d0674d4b3a39b/pay/'),
+        'api_url' => env('MONEYFUSION_API_URL', 'https://www.pay.moneyfusion.net/Elite2_0/32cb4c51bd4a466d/pay/'),
     ],
 ];
