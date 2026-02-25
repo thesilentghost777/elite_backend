@@ -104,22 +104,24 @@ class TrialController extends Controller
         }
 
         DB::transaction(function () use ($user, $activationCost) {
-            $user->solde_points      -= $activationCost;
-            $user->account_activated  = true;
-            $user->activated_at       = Carbon::now();
-            $user->save();
+    $user->solde_points      -= $activationCost;
+    $user->account_activated  = true;
+    $user->activated_at       = Carbon::now();
+    $user->save();
 
-            DB::table('transactions')->insert([
-                'user_id'     => $user->id,
-                'user_type'   => 'elite',
-                'type'        => 'activation',
-                'amount'      => $activationCost,
-                'description' => 'Activation du compte Elite (1 000 FCFA = 3 points)',
-                'status'      => 'completed',
-                'created_at'  => now(),
-                'updated_at'  => now(),
-            ]);
-        });
+    DB::table('transactions')->insert([
+        'user_id'     => $user->id,
+        // 'user_type' => supprimé (colonne inexistante)
+        'type'        => 'achat_pack',  // valeur valide de l'enum
+        'montant_fcfa'=> 1000,
+        'points'      => $activationCost,
+        'reference'   => 'ACT-' . $user->id . '-' . time(),
+        'description' => 'Activation du compte Elite (1 000 FCFA = 3 points)',
+        'statut'      => 'complete',    // pas 'completed'
+        'created_at'  => now(),
+        'updated_at'  => now(),
+    ]);
+});
 
         return response()->json([
             'message'           => 'Compte activé avec succès !',
