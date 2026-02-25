@@ -35,7 +35,7 @@ class PaymentController extends Controller
             'points'       => $this->getDepositPoints($montant),
             'reference'    => $reference,
             'description'  => "Dépôt de {$montant} FCFA",
-            'statut'       => 'pending',
+            'statut'       => 'en_attente',
         ]);
 
         try {
@@ -107,13 +107,13 @@ class PaymentController extends Controller
             }
 
             $data       = $result['data'];
-            $statut     = $data['statut']    ?? 'pending';
+            $statut     = $data['statut']    ?? 'en_attente';
             $reference  = $data['personal_Info'][0]['transactionRef'] ?? null;
 
-            // Retrouver la transaction pending
+            // Retrouver la transaction en_attente
             $transaction = Transaction::where('reference', $reference)
                 ->where('user_id', $user->id)
-                ->where('statut', 'pending')
+                ->where('statut', 'en_attente')
                 ->first();
 
             // Créditer une seule fois si payé
@@ -168,11 +168,11 @@ class PaymentController extends Controller
             }
 
             $data      = $result['data'];
-            $statut    = $data['statut'] ?? 'pending';
+            $statut    = $data['statut'] ?? 'en_attente';
             $reference = $data['personal_Info'][0]['transactionRef'] ?? null;
 
             $transaction = Transaction::where('reference', $reference)
-                ->where('statut', 'pending')
+                ->where('statut', 'en_attente')
                 ->first();
 
             if (in_array($statut, ['paid', 'complete']) && $transaction) {
