@@ -50,10 +50,7 @@
         @yield('content')
     </main>
 
-    {{-- Footer --}}
-    <footer class="gradient-elite text-white/60 text-center py-6 mt-12">
-        <p class="text-xs">© {{ date('Y') }} Elite 2.0 — Propulsé par <a href="https://techforgesolution237.site/" class="text-elite-green-400 hover:underline">TFS237</a></p>
-    </footer>
+  
 
     @stack('scripts')
 </body>
