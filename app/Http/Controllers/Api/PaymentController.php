@@ -151,47 +151,54 @@ class PaymentController extends Controller
      * Webhook MoneyFusion — appelé automatiquement par MoneyFusion après paiement
      */
     public function webhook(Request $request): JsonResponse
-    {
-        Log::info('MoneyFusion webhook received', $request->all());
+{
+    Log::info('MoneyFusion webhook received', $request->all());
 
-        $token = $request->input('token');
+    // ✅ Lire directement depuis le payload (plus besoin d'appel HTTP)
+    $statut    = $request->input('statut');
+    $reference = $request->input('personal_Info.0.transactionRef')
+              ?? ($request->input('personal_Info')[0]['transactionRef'] ?? null);
 
-        if (!$token) {
-            return response()->json(['success' => false, 'message' => 'Token manquant'], 400);
-        }
-
-        try {
-            $result = $this->moneyFusionService->checkPaymentStatus($token);
-
-            if (!$result['success']) {
-                return response()->json(['success' => false], 400);
-            }
-
-            $data      = $result['data'];
-            $statut    = $data['statut'] ?? 'en_attente';
-            $reference = $data['personal_Info'][0]['transactionRef'] ?? null;
-
-            $transaction = Transaction::where('reference', $reference)
-                ->where('statut', 'en_attente')
-                ->first();
-
-            if (in_array($statut, ['paid', 'complete']) && $transaction) {
-                DB::transaction(function () use ($transaction) {
-                    $user = $transaction->user;
-                    $user->addPoints($transaction->points);
-                    $transaction->update(['statut' => 'complete']);
-                });
-            } elseif (in_array($statut, ['failure', 'echoue', 'annule']) && $transaction) {
-                $transaction->update(['statut' => 'echoue']);
-            }
-
-            return response()->json(['success' => true]);
-
-        } catch (\Exception $e) {
-            Log::error('Webhook error', ['error' => $e->getMessage()]);
-            return response()->json(['success' => false], 500);
-        }
+    if (!$reference) {
+        Log::error('Webhook: transactionRef manquant', $request->all());
+        return response()->json(['success' => false, 'message' => 'Référence manquante'], 400);
     }
+
+    $transaction = Transaction::where('reference', $reference)
+        ->where('statut', 'en_attente')
+        ->first();
+
+    if (!$transaction) {
+        Log::warning('Webhook: transaction non trouvée ou déjà traitée', ['reference' => $reference]);
+        return response()->json(['success' => true]); // 200 pour éviter les retentatives
+    }
+
+    try {
+        if (in_array($statut, ['paid', 'complete'])) {
+            DB::transaction(function () use ($transaction) {
+                $user = $transaction->user;
+                $user->addPoints($transaction->points);
+                $transaction->update(['statut' => 'complete']);
+            });
+
+            Log::info('Webhook: points crédités', [
+                'reference' => $reference,
+                'points'    => $transaction->points,
+                'user_id'   => $transaction->user_id,
+            ]);
+
+        } elseif (in_array($statut, ['failure', 'echoue', 'annule', 'failed'])) {
+            $transaction->update(['statut' => 'echoue']);
+        }
+        // "pending" → on ne fait rien, on attend le prochain webhook
+
+        return response()->json(['success' => true]);
+
+    } catch (\Exception $e) {
+        Log::error('Webhook error', ['error' => $e->getMessage(), 'reference' => $reference]);
+        return response()->json(['success' => false], 500);
+    }
+}
 
     /**
      * URL de retour après paiement (redirige l'utilisateur)

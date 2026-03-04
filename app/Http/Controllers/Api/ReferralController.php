@@ -18,7 +18,7 @@ class ReferralController extends Controller
         try {
             $user = $request->user();
 
-            $shareMessage = "🚀 Lance ta carrière avec Elite 2.0 ! Code {$user->referral_code} pour débloquer ton accès et rejoindre des milliers de professionnels en devenir. Ta réussite commence maintenant ! 💼";
+            $shareMessage = "🚀 Lance ta carrière avec Elite 2.0 ! Code {$user->referral_code} pour débloquer ton accès et rejoindre des milliers de professionnels en devenir. Ta réussite commence maintenant ! 💼 Lien vers Elite 2.0 : https://play.google.com/store/apps/details?id=com.ghost777xsorganization.elite20";
             return response()->json([
                 'success' => true,
                 'data' => [
