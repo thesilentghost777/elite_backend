@@ -307,9 +307,9 @@
                     <i class="fab fa-whatsapp text-2xl md:text-3xl text-green-500 mb-3 md:mb-4"></i>
                     <p class="font-semibold text-sm md:text-base">+237 696 087 354</p>
                 </a>
-                <a href="mailto:techforgesolution237@gmail.com" class="glass rounded-xl md:rounded-2xl p-5 md:p-6 hover:bg-elite-accent/10 transition-colors">
+                <a href="mailto:contact@techforgesolution237.site" class="glass rounded-xl md:rounded-2xl p-5 md:p-6 hover:bg-elite-accent/10 transition-colors">
                     <i class="fas fa-envelope text-2xl md:text-3xl text-elite-accent mb-3 md:mb-4"></i>
-                    <p class="font-semibold text-xs md:text-sm break-words">tsf237@gmail.com</p>
+                    <p class="font-semibold text-xs md:text-sm break-words">contact@techforgesolution237.site</p>
                 </a>
                 <a href="https://techforgesolution237.site" target="_blank" class="glass rounded-xl md:rounded-2xl p-5 md:p-6 hover:bg-elite-gold/10 transition-colors">
                     <i class="fas fa-globe text-2xl md:text-3xl text-elite-gold mb-3 md:mb-4"></i>
