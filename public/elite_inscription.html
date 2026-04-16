@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elite — Inscription</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --blue:   #1A5CFF;
+      --blue2:  #4F83FF;
+      --blue3:  #0A3DD4;
+      --light:  #F4F7FF;
+      --white:  #FFFFFF;
+      --card:   #FFFFFF;
+      --dark2:  #FFFFFF;
+      --dark3:  #F0F4FF;
+      --line:   rgba(26,92,255,.12);
+      --text:   #0F1A3A;
+      --muted:  #7A8BAD;
+      --error:  #E03A3A;
+      --success:#1DAB6B;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--light);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Background ── */
+    .bg-layer {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 70% 50% at 10% 10%, rgba(26,92,255,.06) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 90% 80%, rgba(79,131,255,.05) 0%, transparent 55%);
+    }
+    .bg-grid {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: .5;
+    }
+
+    /* ── Layout ── */
+    .page {
+      position: relative; z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── Left Panel ── */
+    .panel-left {
+      display: flex; flex-direction: column; justify-content: space-between;
+      padding: 56px 48px;
+      background: linear-gradient(160deg, #0A3DD4 0%, #1A5CFF 55%, #4F83FF 100%);
+      position: relative; overflow: hidden;
+      animation: fadeLeft .9s ease both;
+    }
+    .panel-left::before {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+    @keyframes fadeLeft { from { opacity:0; transform: translateX(-30px); } to { opacity:1; transform: none; } }
+
+    .logo {
+      display: flex; align-items: center; gap: 12px; position: relative; z-index: 1;
+    }
+    .logo-mark {
+      width: 38px; height: 38px;
+      border: 2px solid rgba(255,255,255,.7);
+      display: grid; place-items: center;
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 18px;
+      color: #fff;
+      clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+      background: rgba(255,255,255,.15);
+    }
+    .logo-text {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700; font-size: 20px;
+      letter-spacing: .12em; text-transform: uppercase;
+      color: #fff;
+    }
+
+    .panel-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 40px 0; position: relative; z-index: 1; }
+
+    .eyebrow {
+      font-size: 11px; letter-spacing: .2em; text-transform: uppercase;
+      color: rgba(255,255,255,.75); margin-bottom: 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .eyebrow::before {
+      content: ''; display: block; width: 28px; height: 1px; background: rgba(255,255,255,.5);
+    }
+
+    .headline {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(36px, 4vw, 58px);
+      font-weight: 800;
+      line-height: 1.05;
+      margin-bottom: 24px;
+      color: #fff;
+    }
+    .headline em {
+      font-style: normal;
+      background: linear-gradient(135deg, #fff, rgba(255,255,255,.75));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    .sub {
+      font-size: 15px; line-height: 1.7;
+      color: rgba(255,255,255,.65); max-width: 380px;
+    }
+
+    .stats {
+      display: flex; gap: 32px; margin-top: 48px;
+    }
+    .stat { display: flex; flex-direction: column; gap: 4px; }
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 28px; font-weight: 700;
+      color: #fff;
+    }
+    .stat-lab { font-size: 12px; color: rgba(255,255,255,.6); letter-spacing: .04em; }
+
+    .panel-foot {
+      font-size: 12px; color: rgba(255,255,255,.45); position: relative; z-index: 1;
+    }
+
+    /* ── Right Panel ── */
+    .panel-right {
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 56px 52px;
+      background: var(--white);
+      animation: fadeRight .9s .15s ease both;
+      overflow-y: auto;
+    }
+    @keyframes fadeRight { from { opacity:0; transform: translateX(30px); } to { opacity:1; transform: none; } }
+
+    .form-header { margin-bottom: 36px; }
+    .form-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 26px; font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .form-sub { font-size: 14px; color: var(--muted); }
+
+    /* ── Form ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .full { grid-column: 1 / -1; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    label {
+      font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--muted); font-weight: 500;
+    }
+
+    input, select {
+      background: var(--dark3);
+      border: 1.5px solid rgba(26,92,255,.15);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      width: 100%;
+      appearance: none;
+    }
+    input::placeholder { color: var(--muted); }
+    input:focus, select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(26,92,255,.1);
+      background: #fff;
+    }
+    input.error, select.error { border-color: var(--error); }
+
+    .field-error {
+      font-size: 11px; color: var(--error);
+      display: none;
+    }
+    .field-error.show { display: block; }
+
+    /* referral badge */
+    .referral-badge {
+      display: none;
+      align-items: center; gap: 8px;
+      background: rgba(26,92,255,.07);
+      border: 1px solid rgba(26,92,255,.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--blue);
+      margin-bottom: 20px;
+    }
+    .referral-badge.show { display: flex; }
+    .referral-badge svg { flex-shrink: 0; }
+
+    /* password toggle */
+    .pw-wrap { position: relative; }
+    .pw-wrap input { padding-right: 44px; }
+    .pw-toggle {
+      position: absolute; right: 12px; top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      color: var(--muted); padding: 4px;
+      display: grid; place-items: center;
+      transition: color .2s;
+    }
+    .pw-toggle:hover { color: var(--blue); }
+
+    /* divider */
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 20px 0;
+      color: var(--muted); font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--line);
+    }
+
+    /* submit */
+    .btn-submit {
+      width: 100%; padding: 15px;
+      background: linear-gradient(135deg, var(--blue3), var(--blue));
+      border: none; border-radius: 8px;
+      font-family: 'Syne', sans-serif;
+      font-size: 15px; font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+      letter-spacing: .06em;
+      position: relative; overflow: hidden;
+      transition: opacity .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 4px 18px rgba(26,92,255,.3);
+    }
+    .btn-submit:hover { opacity: .92; transform: translateY(-1px); box-shadow: 0 8px 28px rgba(26,92,255,.35); }
+    .btn-submit:active { transform: translateY(0); }
+    .btn-submit:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .btn-loader {
+      display: none;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading .btn-txt { display: none; }
+    .loading .btn-loader { display: block; }
+
+    .login-link {
+      text-align: center; margin-top: 20px;
+      font-size: 13px; color: var(--muted);
+    }
+    .login-link a { color: var(--blue); text-decoration: none; font-weight: 500; }
+    .login-link a:hover { text-decoration: underline; }
+
+    /* ── Global alert ── */
+    .alert {
+      display: none;
+      align-items: center; gap: 10px;
+      border-radius: 6px; padding: 12px 14px;
+      font-size: 13px; margin-bottom: 16px;
+    }
+    .alert.show { display: flex; }
+    .alert-error { background: rgba(224,92,92,.1); border: 1px solid rgba(224,92,92,.3); color: #E05C5C; }
+    .alert-success { background: rgba(76,175,125,.1); border: 1px solid rgba(76,175,125,.3); color: var(--success); }
+
+    /* ── Success Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(15,26,58,.85);
+      backdrop-filter: blur(8px);
+      place-items: center;
+    }
+    .modal-overlay.show { display: grid; }
+
+    .modal {
+      background: #fff;
+      border: 1px solid rgba(26,92,255,.12);
+      border-radius: 20px;
+      padding: 52px 44px;
+      max-width: 480px; width: 90%;
+      text-align: center;
+      animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both;
+    }
+    @keyframes popIn { from { opacity:0; transform: scale(.85); } to { opacity:1; transform: none; } }
+
+    .modal-icon {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      background: rgba(26,92,255,.08);
+      border: 1px solid rgba(26,92,255,.2);
+      display: grid; place-items: center;
+      margin: 0 auto 28px;
+    }
+    .modal-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 26px; font-weight: 800;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+    .modal-sub {
+      font-size: 14px; color: var(--muted);
+      line-height: 1.7; margin-bottom: 36px;
+    }
+
+    .store-btns {
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .btn-store {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 20px; border-radius: 10px;
+      text-decoration: none; font-family: 'DM Sans', sans-serif;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .btn-store:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+
+    .btn-playstore {
+      background: #1E8040;
+      border: 1px solid rgba(255,255,255,.1);
+      color: #fff;
+    }
+    .btn-appstore {
+      background: #F0F4FF;
+      border: 1px solid rgba(26,92,255,.15);
+      color: var(--muted);
+      cursor: not-allowed;
+    }
+    .btn-appstore:hover { transform: none; box-shadow: none; }
+
+    .store-info { text-align: left; flex: 1; }
+    .store-label { font-size: 10px; opacity: .7; letter-spacing: .06em; text-transform: uppercase; }
+    .store-name { font-weight: 600; font-size: 15px; }
+    .badge-soon {
+      font-size: 10px; background: rgba(255,255,255,.1);
+      border-radius: 4px; padding: 2px 7px;
+      letter-spacing: .04em;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .page { grid-template-columns: 1fr; }
+      .panel-left { display: none; }
+      .panel-right { padding: 40px 28px; }
+    }
+    @media (max-width: 480px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .full { grid-column: 1; }
+    }
+
+    select option { background: var(--dark2); }
+  </style>
+</head>
+<body>
+<div class="bg-layer"></div>
+<div class="bg-grid"></div>
+
+<div class="page">
+
+  <!-- ── LEFT PANEL ── -->
+  <div class="panel-left">
+    <div class="logo">
+      <div class="logo-mark">E</div>
+      <span class="logo-text">Elite</span>
+    </div>
+
+    <div class="panel-hero">
+      <div class="eyebrow">Plateforme de formation professionnelle</div>
+      <h1 class="headline">
+        Construis ton<br />avenir <em>professionnel</em><br />dès aujourd'hui.
+      </h1>
+      <p class="sub">
+        Accède aux meilleures formations, obtiens des certifications reconnues et rejoins une communauté d'apprenants ambitieux au Cameroun et au-delà.
+      </p>
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-num">500+</span>
+          <span class="stat-lab">Apprenants actifs</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num">30+</span>
+          <span class="stat-lab">Packs de formation</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num">100%</span>
+          <span class="stat-lab">En ligne &amp; mobile</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="panel-foot">© 2025 Elite — Tous droits réservés.</p>
+  </div>
+
+  <!-- ── RIGHT PANEL ── -->
+  <div class="panel-right">
+    <div class="form-header">
+      <div class="logo" style="margin-bottom:28px;display:flex;gap:10px;align-items:center;">
+        <div class="logo-mark" style="background:rgba(26,92,255,.1);border-color:var(--blue);color:var(--blue);">E</div>
+        <span class="logo-text" style="color:var(--blue);">Elite</span>
+      </div>
+      <h2 class="form-title">Créer mon compte</h2>
+      <p class="form-sub">Remplis le formulaire ci-dessous pour démarrer gratuitement.</p>
+    </div>
+
+    <!-- Referral badge -->
+    <div class="referral-badge" id="referralBadge">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
+        <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" fill="currentColor"/>
+      </svg>
+      <span>Parrainage actif : <strong id="referralLabel"></strong></span>
+    </div>
+
+    <div class="alert alert-error" id="alertError">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+        <path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span id="alertErrorText"></span>
+    </div>
+
+    <form id="registerForm" novalidate>
+      <div class="form-grid">
+
+        <div class="field">
+          <label for="nom">Nom</label>
+          <input id="nom" name="nom" type="text" placeholder="Dupont" autocomplete="family-name" />
+          <span class="field-error" id="err-nom"></span>
+        </div>
+
+        <div class="field">
+          <label for="prenom">Prénom</label>
+          <input id="prenom" name="prenom" type="text" placeholder="Jean" autocomplete="given-name" />
+          <span class="field-error" id="err-prenom"></span>
+        </div>
+
+        <div class="field full">
+          <label for="telephone">Numéro de téléphone</label>
+          <input id="telephone" name="telephone" type="tel" placeholder="+237 6XX XXX XXX" autocomplete="tel" />
+          <span class="field-error" id="err-telephone"></span>
+        </div>
+
+        <div class="field full">
+          <label for="email">Email <span style="color:var(--muted);font-size:10px;">(optionnel)</span></label>
+          <input id="email" name="email" type="email" placeholder="jean@exemple.com" autocomplete="email" />
+          <span class="field-error" id="err-email"></span>
+        </div>
+
+        <div class="field">
+          <label for="ville">Ville</label>
+          <input id="ville" name="ville" type="text" placeholder="Yaoundé" />
+          <span class="field-error" id="err-ville"></span>
+        </div>
+
+        <div class="field">
+          <label for="dernier_diplome">Dernier diplôme</label>
+          <select id="dernier_diplome" name="dernier_diplome">
+            <option value="" disabled selected>Choisir…</option>
+            <option value="primaire">Primaire (CEPE)</option>
+            <option value="secondaire">Secondaire (BEPC / BAC)</option>
+            <option value="universitaire">Universitaire</option>
+          </select>
+          <span class="field-error" id="err-diplome"></span>
+        </div>
+
+        <div class="field full">
+          <label for="password">Mot de passe</label>
+          <div class="pw-wrap">
+            <input id="password" name="password" type="password" placeholder="Minimum 6 caractères" autocomplete="new-password" />
+            <button type="button" class="pw-toggle" onclick="togglePw('password',this)" aria-label="Afficher le mot de passe">
+              <svg id="eye-password" width="18" height="18" fill="none" viewBox="0 0 24 24">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" stroke="currentColor" stroke-width="2"/>
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+          </div>
+          <span class="field-error" id="err-password"></span>
+        </div>
+
+        <div class="field full">
+          <label for="password_confirmation">Confirmer le mot de passe</label>
+          <div class="pw-wrap">
+            <input id="password_confirmation" name="password_confirmation" type="password" placeholder="Retaper le mot de passe" autocomplete="new-password" />
+            <button type="button" class="pw-toggle" onclick="togglePw('password_confirmation',this)" aria-label="Afficher la confirmation">
+              <svg id="eye-password_confirmation" width="18" height="18" fill="none" viewBox="0 0 24 24">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" stroke="currentColor" stroke-width="2"/>
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+          </div>
+          <span class="field-error" id="err-confirm"></span>
+        </div>
+
+        <div class="field full">
+          <label for="referral_code">Code de parrainage <span style="color:var(--muted);font-size:10px;">(optionnel)</span></label>
+          <input id="referral_code" name="referral_code" type="text" placeholder="Ex: ABC123" style="text-transform:uppercase;" />
+          <span class="field-error" id="err-referral"></span>
+        </div>
+
+      </div>
+
+      <div class="divider">Prêt à commencer ?</div>
+
+      <button type="submit" class="btn-submit" id="submitBtn">
+        <span class="btn-txt">Créer mon compte</span>
+        <div class="btn-loader"></div>
+      </button>
+    </form>
+
+    <p class="login-link">Déjà inscrit ? <a href="#">Se connecter</a></p>
+  </div>
+</div>
+
+<!-- ── SUCCESS MODAL ── -->
+<div class="modal-overlay" id="successModal">
+  <div class="modal">
+    <div class="modal-icon">
+      <svg width="32" height="32" fill="none" viewBox="0 0 24 24">
+        <path d="M20 6L9 17l-5-5" stroke="#1A5CFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h2 class="modal-title">Bienvenue sur Elite ! 🎉</h2>
+    <p class="modal-sub">
+      Ton compte a bien été créé.<br />
+      Télécharge l'application pour continuer ton parcours de formation.
+    </p>
+    <div class="store-btns">
+      <a class="btn-store btn-playstore"
+         href="https://play.google.com/store/apps/details?id=com.ghost777xsorganization.elite20"
+         target="_blank" rel="noopener">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="white">
+          <path d="M3.18 23.76a1.5 1.5 0 001.68-.18l12.08-9.04-2.44-2.44L3.18 23.76zM21.3 10.3L18.56 8.7l-2.76 2.76 2.76 2.76 2.76-1.62a1.5 1.5 0 000-2.3zM3.18.24L14.5 12.1l-2.44 2.44L1.5 5.5A1.5 1.5 0 013.18.24zM5 1.24l9.5 9.5-2.44 2.44L2.06 3.18A1.5 1.5 0 015 1.24z"/>
+        </svg>
+        <div class="store-info">
+          <div class="store-label">Disponible sur</div>
+          <div class="store-name">Google Play</div>
+        </div>
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
+          <path d="M5 12h14M12 5l7 7-7 7" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </a>
+
+      <div class="btn-store btn-appstore" style="opacity:.5;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M16.05 1.62c.96-1.15 2.6-2 3.95-2.05.19 1.56-.45 3.12-1.37 4.25-.92 1.1-2.46 1.97-3.97 1.85-.22-1.54.5-3.08 1.39-4.05zM20 8.46c-2.18-.12-4.03 1.24-5.06 1.24-1.05 0-2.67-1.18-4.4-1.15-2.27.04-4.36 1.33-5.52 3.37-2.38 4.1-.62 10.18 1.68 13.52 1.13 1.65 2.48 3.5 4.24 3.44 1.68-.07 2.33-1.09 4.38-1.09 2.04 0 2.62 1.09 4.4 1.05 1.84-.03 3-1.67 4.13-3.32.87-1.25 1.56-2.64 2-4.1-5.24-2-4.88-9.47.15-11.96z"/>
+        </svg>
+        <div class="store-info">
+          <div class="store-label">Disponible prochainement sur</div>
+          <div class="store-name">App Store</div>
+        </div>
+        <span class="badge-soon">Bientôt</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = 'https://elite.supahuman.site/api';
+
+  /* ── Auto-fill referral from URL param ── */
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('ref') || params.get('referral') || params.get('code') || params.get('referral_code');
+    if (code) {
+      const input = document.getElementById('referral_code');
+      input.value = code.toUpperCase();
+      const badge = document.getElementById('referralBadge');
+      document.getElementById('referralLabel').textContent = code.toUpperCase();
+      badge.classList.add('show');
+    }
+  })();
+
+  /* ── referral_code auto uppercase ── */
+  document.getElementById('referral_code').addEventListener('input', function () {
+    this.value = this.value.toUpperCase();
+  });
+
+  /* ── Password toggle ── */
+  function togglePw(id, btn) {
+    const input = document.getElementById(id);
+    const isText = input.type === 'text';
+    input.type = isText ? 'password' : 'text';
+    btn.querySelector('svg').style.opacity = isText ? '1' : '.45';
+  }
+
+  /* ── Helpers ── */
+  function setError(fieldId, msg) {
+    const input = document.getElementById(fieldId);
+    const err   = document.getElementById('err-' + fieldId);
+    if (!err) return;
+    if (msg) {
+      input && input.classList.add('error');
+      err.textContent = msg; err.classList.add('show');
+    } else {
+      input && input.classList.remove('error');
+      err.textContent = ''; err.classList.remove('show');
+    }
+  }
+
+  function clearErrors() {
+    ['nom','prenom','telephone','email','ville','diplome','password','confirm','referral'].forEach(k => setError(k, ''));
+    document.querySelectorAll('input,select').forEach(el => el.classList.remove('error'));
+    const ae = document.getElementById('alertError');
+    ae.classList.remove('show');
+  }
+
+  function showGlobalError(msg) {
+    const ae = document.getElementById('alertError');
+    document.getElementById('alertErrorText').textContent = msg;
+    ae.classList.add('show');
+    ae.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function setLoading(on) {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = on;
+    btn.classList.toggle('loading', on);
+  }
+
+  /* ── Validate ── */
+  function validate(data) {
+    let ok = true;
+    if (!data.nom.trim())        { setError('nom',      'Le nom est requis.');       ok = false; }
+    if (!data.prenom.trim())     { setError('prenom',   'Le prénom est requis.');    ok = false; }
+    if (!data.telephone.trim())  { setError('telephone','Le téléphone est requis.'); ok = false; }
+    if (!data.ville.trim())      { setError('ville',    'La ville est requise.');    ok = false; }
+    if (!data.dernier_diplome)   { setError('diplome',  'Choisis ton diplôme.');     ok = false; }
+    if (data.password.length < 6){ setError('password', 'Minimum 6 caractères.');   ok = false; }
+    if (data.password !== data.password_confirmation) {
+      setError('confirm', 'Les mots de passe ne correspondent pas.'); ok = false;
+    }
+    return ok;
+  }
+
+  /* ── Submit ── */
+  document.getElementById('registerForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    clearErrors();
+
+    const f = this;
+    const data = {
+      nom:                    f.nom.value.trim(),
+      prenom:                 f.prenom.value.trim(),
+      telephone:              f.telephone.value.trim(),
+      email:                  f.email.value.trim() || undefined,
+      ville:                  f.ville.value.trim(),
+      dernier_diplome:        f.dernier_diplome.value,
+      password:               f.password.value,
+      password_confirmation:  f.password_confirmation.value,
+      referral_code:          f.referral_code.value.trim() || undefined,
+    };
+
+    if (!validate(data)) return;
+
+    // Remove undefined
+    Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        // Handle Laravel validation errors
+        if (json.errors) {
+          if (json.errors.nom)        setError('nom',      json.errors.nom[0]);
+          if (json.errors.prenom)     setError('prenom',   json.errors.prenom[0]);
+          if (json.errors.telephone)  setError('telephone',json.errors.telephone[0]);
+          if (json.errors.email)      setError('email',    json.errors.email[0]);
+          if (json.errors.ville)      setError('ville',    json.errors.ville[0]);
+          if (json.errors.dernier_diplome) setError('diplome', json.errors.dernier_diplome[0]);
+          if (json.errors.password)   setError('password', json.errors.password[0]);
+          if (json.errors.referral_code) setError('referral', json.errors.referral_code[0]);
+        } else {
+          showGlobalError(json.message || 'Une erreur est survenue. Réessaie.');
+        }
+        return;
+      }
+
+      // SUCCESS
+      document.getElementById('successModal').classList.add('show');
+
+    } catch (err) {
+      showGlobalError('Impossible de joindre le serveur. Vérifie ta connexion internet.');
+    } finally {
+      setLoading(false);
+    }
+  });
+</script>
+</body>
+</html>
