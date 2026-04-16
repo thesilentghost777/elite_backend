@@ -40,6 +40,10 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+        'sanctum' => [
+        'driver'   => 'sanctum',
+        'provider' => 'elite_users', // ← important
+    ],
     ],
 
     /*
@@ -65,10 +69,10 @@ return [
             'model' => env('AUTH_MODEL', App\Models\User::class),
         ],
 
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
+        'elite_users' => [
+        'driver' => 'eloquent',
+        'model'  => App\Models\EliteUser::class, // ← pointe vers EliteUser
+    ],
     ],
 
     /*

@@ -108,3 +108,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/referral/history',  [ReferralController::class, 'history']);
     Route::get('/referral/my-parrain',[ReferralController::class, 'myParrain']);
 });
+
+// ── REFERRAL (nouvelles routes) ──────────────────────────────────────────
+Route::middleware('auth:sanctum')->prefix('referral')->group(function () {
+    Route::get('/my-code', [ReferralController::class, 'myCode']);
+    Route::get('/stats', [ReferralController::class, 'stats']);
+    Route::get('/history', [ReferralController::class, 'history']);
+    Route::get('/my-parrain', [ReferralController::class, 'myParrain']);
+    Route::post('/create-project', [ReferralController::class, 'createProject']);
+    Route::post('/request-withdrawal', [ReferralController::class, 'requestWithdrawal']);
+    Route::post('/confirm-withdrawal', [ReferralController::class, 'confirmWithdrawal']);
+});
+
+// ── PAYMENT ──────────────────────────────────────────────────────────────
+Route::middleware('auth:sanctum')->prefix('payment')->group(function () {
+    Route::post('/initiate-pack', [PaymentController::class, 'initiatePackPayment']);
+    Route::post('/initiate-deposit', [PaymentController::class, 'initiateDeposit']);
+    Route::post('/check-status', [PaymentController::class, 'checkPaymentStatus']);
+    Route::get('/return', [PaymentController::class, 'returnUrl']);
+});
+Route::post('/payment/webhook', [PaymentController::class, 'webhook']);

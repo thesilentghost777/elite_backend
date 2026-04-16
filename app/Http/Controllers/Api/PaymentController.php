@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\MoneyFusionService;
 use App\Models\Transaction;
+use App\Models\UserPack;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +16,106 @@ class PaymentController extends Controller
     public function __construct(private MoneyFusionService $moneyFusionService) {}
 
     /**
-     * Étape 1 : Initier un dépôt — retourne l'URL de paiement MoneyFusion
+     * Achat d'un pack — débit direct sur solde_points (= FCFA)
+     * Montant fixe : 10 000
+     */
+    public function initiatePackPayment(Request $request): JsonResponse
+    {
+        $request->validate([
+            'pack_id' => 'required|integer|exists:packs,id',
+        ]);
+
+        $user   = $request->user();
+        $packId = $request->pack_id;
+
+        if ($user->hasPack($packId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous possédez déjà ce pack.',
+            ], 422);
+        }
+
+        $montant = 10000;
+
+        // Vérification du solde — solde_points = FCFA
+        if ($user->solde_points < $montant) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Solde insuffisant. Veuillez recharger votre wallet.',
+                'data'    => [
+                    'solde_actuel'   => $user->solde_points,
+                    'montant_requis' => $montant,
+                ],
+            ], 422);
+        }
+
+        $reference = Transaction::generateReference();
+
+        try {
+            DB::transaction(function () use ($user, $packId, $montant, $reference) {
+                // Débiter solde_points
+                $user->decrement('solde_points', $montant);
+
+                Transaction::create([
+                    'user_id'      => $user->id,
+                    'type'         => 'achat_pack',
+                    'montant_fcfa' => $montant,
+                    'points'       => $montant,
+                    'reference'    => $reference,
+                    'description'  => "Achat pack ID {$packId}",
+                    'statut'       => 'complete',
+                    'metadata'     => ['pack_id' => $packId],
+                ]);
+
+                UserPack::create([
+                    'user_id'         => $user->id,
+                    'pack_id'         => $packId,
+                    'duree_choisie'   => 'illimité',
+                    'prix_paye'       => $montant,
+                    'statut'          => 'actif',
+                    'date_achat'      => now(),
+                    'date_expiration' => null,
+                ]);
+
+                // Débloquer le premier chapitre
+                $firstModule = \App\Models\Module::where('pack_id', $packId)
+                    ->where('active', true)->orderBy('ordre')->first();
+                if ($firstModule) {
+                    $firstChapter = \App\Models\Chapter::where('module_id', $firstModule->id)
+                        ->where('active', true)->orderBy('ordre')->first();
+                    if ($firstChapter) {
+                        \App\Models\ChapterUnlock::firstOrCreate(
+                            ['user_id' => $user->id, 'chapter_id' => $firstChapter->id],
+                            ['unlock_method' => 'score']
+                        );
+                    }
+                }
+
+                $this->handleReferralOnPackPurchase($user, $packId);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pack acheté avec succès.',
+                'data'    => [
+                    'reference'     => $reference,
+                    'montant'       => $montant,
+                    'nouveau_solde' => $user->fresh()->solde_points,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Pack purchase error', [
+                'user_id' => $user->id,
+                'pack_id' => $packId,
+                'error'   => $e->getMessage(),
+            ]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Initier un dépôt via MoneyFusion — crédite solde_points
      */
     public function initiateDeposit(Request $request): JsonResponse
     {
@@ -23,16 +123,15 @@ class PaymentController extends Controller
             'montant_fcfa' => 'required|numeric|min:500',
         ]);
 
-        $user       = $request->user();
-        $montant    = (float) $request->montant_fcfa;
-        $reference  = Transaction::generateReference();
+        $user      = $request->user();
+        $montant   = (float) $request->montant_fcfa;
+        $reference = Transaction::generateReference();
 
-        // Créer la transaction en attente AVANT d'appeler MoneyFusion
         Transaction::create([
             'user_id'      => $user->id,
             'type'         => 'depot',
             'montant_fcfa' => $montant,
-            'points'       => $this->getDepositPoints($montant),
+            'points'       => $montant,
             'reference'    => $reference,
             'description'  => "Dépôt de {$montant} FCFA",
             'statut'       => 'en_attente',
@@ -50,9 +149,7 @@ class PaymentController extends Controller
             $result = $this->moneyFusionService->initiatePayment($paymentData);
 
             if (!$result['success'] || empty($result['payment_url'])) {
-                // Annuler la transaction en attente
                 Transaction::where('reference', $reference)->update(['statut' => 'echoue']);
-
                 return response()->json([
                     'success' => false,
                     'message' => $result['message'] ?? 'Impossible d\'initier le paiement',
@@ -70,28 +167,14 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             Transaction::where('reference', $reference)->update(['statut' => 'echoue']);
-
-            Log::error('Deposit initiation error', [
-                'user_id' => $user->id,
-                'montant' => $montant,
-                'error'   => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
+            Log::error('Deposit initiation error', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
         }
     }
 
-    /**
-     * Étape 2 : Vérifier le statut du paiement et créditer si confirmé
-     */
     public function checkPaymentStatus(Request $request): JsonResponse
     {
-        $request->validate([
-            'payment_token' => 'required|string',
-        ]);
+        $request->validate(['payment_token' => 'required|string']);
 
         $user  = $request->user();
         $token = $request->payment_token;
@@ -100,137 +183,115 @@ class PaymentController extends Controller
             $result = $this->moneyFusionService->checkPaymentStatus($token);
 
             if (!$result['success']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $result['message'] ?? 'Impossible de vérifier le paiement',
-                ], 400);
+                return response()->json(['success' => false, 'message' => $result['message'] ?? 'Impossible de vérifier'], 400);
             }
 
-            $data       = $result['data'];
-            $statut     = $data['statut']    ?? 'en_attente';
-            $reference  = $data['personal_Info'][0]['transactionRef'] ?? null;
+            $data      = $result['data'];
+            $statut    = $data['statut'] ?? 'en_attente';
+            $reference = $data['personal_Info'][0]['transactionRef'] ?? null;
 
-            // Retrouver la transaction en_attente
             $transaction = Transaction::where('reference', $reference)
                 ->where('user_id', $user->id)
                 ->where('statut', 'en_attente')
                 ->first();
 
-            // Créditer une seule fois si payé
             if (in_array($statut, ['paid', 'complete']) && $transaction) {
                 DB::transaction(function () use ($user, $transaction) {
-                    $user->addPoints($transaction->points);
-                    $transaction->update(['statut' => 'complete']);
+                    $this->processSuccessfulDeposit($user, $transaction);
                 });
             } elseif (in_array($statut, ['failure', 'echoue', 'annule']) && $transaction) {
                 $transaction->update(['statut' => 'echoue']);
             }
 
-            return response()->json([
-                'success' => true,
-                'data'    => [
-                    'statut'  => $statut,
-                    'montant' => $data['montant'] ?? null,
-                ],
-            ]);
+            return response()->json(['success' => true, 'data' => ['statut' => $statut, 'montant' => $data['montant'] ?? null]]);
 
         } catch (\Exception $e) {
-            Log::error('Payment status check error', [
-                'token' => $token,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
+            Log::error('Payment status check error', ['token' => $token, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
         }
     }
 
-    /**
-     * Webhook MoneyFusion — appelé automatiquement par MoneyFusion après paiement
-     */
     public function webhook(Request $request): JsonResponse
-{
-    Log::info('MoneyFusion webhook received', $request->all());
+    {
+        Log::info('MoneyFusion webhook received', $request->all());
 
-    // ✅ Lire directement depuis le payload (plus besoin d'appel HTTP)
-    $statut    = $request->input('statut');
-    $reference = $request->input('personal_Info.0.transactionRef')
-              ?? ($request->input('personal_Info')[0]['transactionRef'] ?? null);
+        $statut    = $request->input('statut');
+        $reference = $request->input('personal_Info.0.transactionRef')
+                  ?? ($request->input('personal_Info')[0]['transactionRef'] ?? null);
 
-    if (!$reference) {
-        Log::error('Webhook: transactionRef manquant', $request->all());
-        return response()->json(['success' => false, 'message' => 'Référence manquante'], 400);
-    }
-
-    $transaction = Transaction::where('reference', $reference)
-        ->where('statut', 'en_attente')
-        ->first();
-
-    if (!$transaction) {
-        Log::warning('Webhook: transaction non trouvée ou déjà traitée', ['reference' => $reference]);
-        return response()->json(['success' => true]); // 200 pour éviter les retentatives
-    }
-
-    try {
-        if (in_array($statut, ['paid', 'complete'])) {
-            DB::transaction(function () use ($transaction) {
-                $user = $transaction->user;
-                $user->addPoints($transaction->points);
-                $transaction->update(['statut' => 'complete']);
-            });
-
-            Log::info('Webhook: points crédités', [
-                'reference' => $reference,
-                'points'    => $transaction->points,
-                'user_id'   => $transaction->user_id,
-            ]);
-
-        } elseif (in_array($statut, ['failure', 'echoue', 'annule', 'failed'])) {
-            $transaction->update(['statut' => 'echoue']);
+        if (!$reference) {
+            Log::error('Webhook: transactionRef manquant', $request->all());
+            return response()->json(['success' => false, 'message' => 'Référence manquante'], 400);
         }
-        // "pending" → on ne fait rien, on attend le prochain webhook
 
-        return response()->json(['success' => true]);
+        $transaction = Transaction::where('reference', $reference)
+            ->where('statut', 'en_attente')
+            ->first();
 
-    } catch (\Exception $e) {
-        Log::error('Webhook error', ['error' => $e->getMessage(), 'reference' => $reference]);
-        return response()->json(['success' => false], 500);
+        if (!$transaction) {
+            return response()->json(['success' => true]);
+        }
+
+        try {
+            if (in_array($statut, ['paid', 'complete'])) {
+                DB::transaction(function () use ($transaction) {
+                    $this->processSuccessfulDeposit($transaction->user, $transaction);
+                });
+            } elseif (in_array($statut, ['failure', 'echoue', 'annule', 'failed'])) {
+                $transaction->update(['statut' => 'echoue']);
+            }
+
+            return response()->json(['success' => true]);
+
+        } catch (\Exception $e) {
+            Log::error('Webhook error', ['error' => $e->getMessage(), 'reference' => $reference]);
+            return response()->json(['success' => false], 500);
+        }
     }
-}
 
     /**
-     * URL de retour après paiement (redirige l'utilisateur)
+     * Dépôt réussi — crédite solde_points (= FCFA)
      */
+    private function processSuccessfulDeposit($user, $transaction): void
+    {
+        $montant = (float) $transaction->montant_fcfa;
+
+        // Créditer solde_points
+        $user->increment('solde_points', $montant);
+
+        $transaction->update(['statut' => 'complete']);
+    }
+
+    private function handleReferralOnPackPurchase($user, $packId): void
+    {
+        if (!$user->referred_by) return;
+
+        $parrain = \App\Models\EliteUser::where('referral_code', $user->referred_by)->first();
+        if (!$parrain) return;
+
+        $exists = DB::table('referral_history')
+            ->where('parrain_id', $parrain->id)
+            ->where('filleul_id', $user->id)
+            ->exists();
+
+        if (!$exists) {
+            DB::table('referral_history')->insert([
+                'parrain_id'    => $parrain->id,
+                'filleul_id'    => $user->id,
+                'points_gagnes' => 0,
+                'created_at'    => now(),
+                'updated_at'    => now(),
+            ]);
+        }
+
+        DB::table('referral_history')
+            ->where('parrain_id', $parrain->id)
+            ->where('filleul_id', $user->id)
+            ->update(['has_purchased_pack' => true, 'pack_id' => $packId]);
+    }
+
     public function returnUrl(Request $request)
     {
-        // Cette route est ouverte dans la WebView
-        // Le frontend détecte cette URL et ferme la WebView
-        return response()->json([
-            'success' => true,
-            'message' => 'Paiement traité',
-        ]);
-    }
-
-    /**
-     * Barème de conversion FCFA → points
-     */
-    private function getDepositPoints(float $montantFcfa): int
-    {
-        $bareme = [
-            1000   => 3,
-            2000   => 7,
-            3000   => 10,
-            5000   => 17,
-            10000  => 35,
-            20000  => 72,
-            30000  => 110,
-            50000  => 185,
-            75000  => 280,
-            100000 => 375,
-        ];
-
-        return $bareme[(int) $montantFcfa] ?? (int) ($montantFcfa / 650);
+        return response()->json(['success' => true, 'message' => 'Paiement traité']);
     }
 }

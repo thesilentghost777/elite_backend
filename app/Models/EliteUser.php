@@ -3,14 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Sanctum\HasApiTokens;
 
 class EliteUser extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+
+    protected $table = 'elite_users';
 
     protected $fillable = [
         'nom',
@@ -34,15 +36,18 @@ class EliteUser extends Authenticatable
         'remember_token',
     ];
 
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-        'correspondence_completed' => 'boolean',
-        'profile_chosen' => 'boolean',
-        'solde_points' => 'decimal:2',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at'          => 'datetime',
+            'password'                   => 'hashed',
+            'correspondence_completed'   => 'boolean',
+            'profile_chosen'             => 'boolean',
+            'solde_points'               => 'decimal:2',
+        ];
+    }
 
-      /**
+    /**
      * Obtenir le profil de carrière actuellement choisi
      */
     public function getSelectedCareerProfile()
@@ -54,8 +59,10 @@ class EliteUser extends Authenticatable
         $choice = $this->profileChoice()->with('profile')->first();
         return $choice ? $choice->profile : null;
     }
-    
-    // Génère un code de parrainage unique
+
+    /**
+     * Génère un code de parrainage unique
+     */
     public static function generateReferralCode(): string
     {
         do {
@@ -65,7 +72,13 @@ class EliteUser extends Authenticatable
         return $code;
     }
 
-    // Relations
+    // ============ RELATIONS ============
+
+    public function userPacks()
+    {
+        return $this->hasMany(UserPack::class, 'user_id');
+    }
+
     public function parrain()
     {
         return $this->belongsTo(EliteUser::class, 'referred_by', 'referral_code');
@@ -131,7 +144,8 @@ class EliteUser extends Authenticatable
         return $this->hasMany(Transfer::class, 'receiver_id');
     }
 
-    // Helpers
+    // ============ HELPERS ============
+
     public function getFullNameAttribute(): string
     {
         return "{$this->prenom} {$this->nom}";

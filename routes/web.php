@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\CorrespondenceController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\OpportunityController;
+use App\Http\Controllers\Web\RegisterController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -118,6 +119,19 @@ Route::prefix('espace')->name('elite.')->group(function () {
     Route::get('/bibliotheque/{livre}', [OpportunityController::class, 'viewBook'])->name('bibliotheque.view');
     Route::get('/bibliotheque/{livre}/download', [OpportunityController::class, 'downloadBook'])->name('bibliotheque.download');
     Route::get('/communaute', [OpportunityController::class, 'communaute'])->name('communaute');
+});
+
+Route::prefix('register')->name('web.')->group(function () {
+    Route::get('/', [RegisterController::class, 'showRegisterForm'])->name('register');
+    Route::post('/', [RegisterController::class, 'register'])->name('register.submit');
+
+    // OTP
+    Route::post('/send-otp', [RegisterController::class, 'sendOtp'])->name('send-otp');
+    Route::post('/verify-otp', [RegisterController::class, 'verifyOtp'])->name('verify-otp');
+
+    // Google OAuth
+    Route::get('/auth/google', [RegisterController::class, 'redirectToGoogle'])->name('auth.google');
+    Route::get('/auth/google/callback', [RegisterController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 });
 
 
