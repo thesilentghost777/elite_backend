@@ -29,7 +29,7 @@ class ReferralController extends Controller
             ], 403);
         }
 
-        $referralLink   = config('app.url') . '/register?ref=' . $user->referral_code;
+        $referralLink   = 'https://elite.supahuman.site/elite_inscription.html?ref=' . $user->referral_code;
         $shareMessage   = "Inscrit toi a Elite 2.0 et beneficie jusqu'a 3 Millions de subvention a la fin de ta formation {$referralLink}";
 
         return response()->json([
