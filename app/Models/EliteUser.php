@@ -14,27 +14,31 @@ class EliteUser extends Authenticatable
 
     protected $table = 'elite_users';
 
-    protected $fillable = [
-        'nom',
-        'prenom',
-        'telephone',
-        'email',
-        'dernier_diplome',
-        'ville',
-        'password',
-        'referral_code',
-        'referred_by',
-        'solde_points',
-        'correspondence_completed',
-        'profile_chosen',
-        'parcours_mode',
-        'photo_url',
+   
+      protected $fillable = [
+        'nom', 'prenom', 'telephone', 'email', 'dernier_diplome', 'ville',
+        'password', 'referral_code', 'referred_by', 'solde_points',
+        'correspondence_completed', 'profile_chosen', 'parcours_mode', 'photo_url',
+        'firebase_uid', 'provider', 'email_verified', 'otp_code', 'otp_expires_at',
+        'trial_started_at', 'trial_expires_at', 'account_activated', 'activated_at',
     ];
 
-    protected $hidden = [
-        'password',
-        'remember_token',
+    protected $hidden = ['password', 'remember_token', 'otp_code'];
+
+    protected $casts = [
+        'email_verified_at'        => 'datetime',
+        'email_verified'           => 'boolean',
+        'otp_expires_at'           => 'datetime',
+        'correspondence_completed' => 'boolean',
+        'profile_chosen'           => 'boolean',
+        'account_activated'        => 'boolean',
+        'solde_points'             => 'decimal:2',
+        'trial_started_at'         => 'datetime',
+        'trial_expires_at'         => 'datetime',
+        'activated_at'             => 'datetime',
     ];
+
+  
 
     protected function casts(): array
     {
@@ -189,4 +193,42 @@ class EliteUser extends Authenticatable
         $this->decrement('solde_points', $points);
         return true;
     }
+
+     public function isProfileComplete(): bool
+    {
+        return !empty($this->nom)
+            && !empty($this->prenom)
+            && !empty($this->dernier_diplome)
+            && !empty($this->ville);
+    }
+    
+    // ─── OTP helpers ──────────────────────────────────────────────
+ 
+    public function generateEmailOtp(): string
+    {
+        $otp = (string) random_int(100000, 999999);
+        $this->update([
+            'email_otp'            => $otp,
+            'email_otp_expires_at' => now()->addMinutes(15),
+        ]);
+        return $otp;
+    }
+ 
+    public function verifyEmailOtp(string $otp): bool
+    {
+        return $this->email_otp === $otp
+            && $this->email_otp_expires_at
+            && now()->lessThanOrEqualTo($this->email_otp_expires_at);
+    }
+ 
+    public function markEmailVerified(): void
+    {
+        $this->update([
+            'email_verified'         => true,
+            'email_verified_at'      => now(),
+            'email_otp'              => null,
+            'email_otp_expires_at'   => null,
+        ]);
+    }
+    
 }

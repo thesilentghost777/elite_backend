@@ -94,70 +94,73 @@ private function getDepositPoints(float $montantFcfa): int
      * Utiliser un code caisse
      */
     public function useCashCode(EliteUser $user, string $code): array
-    {
-        $cashCode = CashCode::where('code', $code)->first();
+{
+    $cashCode = CashCode::where('code', $code)->first();
 
-        if (!$cashCode) {
-            throw ValidationException::withMessages([
-                'code' => ['Code caisse invalide.']
-            ]);
-        }
-
-        if (!$cashCode->canBeUsedBy($user)) {
-            if ($cashCode->used_at) {
-                throw ValidationException::withMessages([
-                    'code' => ['Ce code a déjà été utilisé.']
-                ]);
-            }
-            if ($cashCode->assigned_to && $cashCode->assigned_to !== $user->id) {
-                throw ValidationException::withMessages([
-                    'code' => ['Ce code est assigné à un autre utilisateur.']
-                ]);
-            }
-            if ($cashCode->expires_at && $cashCode->expires_at->isPast()) {
-                throw ValidationException::withMessages([
-                    'code' => ['Ce code a expiré.']
-                ]);
-            }
-            throw ValidationException::withMessages([
-                'code' => ['Ce code n\'est pas valide.']
-            ]);
-        }
-
-        return DB::transaction(function () use ($user, $cashCode) {
-            $cashCode->update([
-                'used_by' => $user->id,
-                'used_at' => now(),
-                'active' => false,
-            ]);
-
-            $user->addPoints($cashCode->points);
-
-            $transaction = Transaction::create([
-                'user_id' => $user->id,
-                'type' => 'code_caisse',
-                'montant_fcfa' => $cashCode->montant_fcfa,
-                'points' => $cashCode->points,
-                'reference' => Transaction::generateReference(),
-                'description' => "Code caisse: {$cashCode->code}",
-                'metadata' => [
-                    'cash_code_id' => $cashCode->id,
-                    'code' => $cashCode->code,
-                ],
-                'statut' => 'complete',
-            ]);
-
-            return [
-                'success' => true,
-                'transaction' => [
-                    'reference' => $transaction->reference,
-                    'montant_fcfa' => $cashCode->montant_fcfa,
-                    'points_credites' => $cashCode->points,
-                ],
-                'nouveau_solde' => $user->solde_points,
-            ];
-        });
+    if (!$cashCode) {
+        throw ValidationException::withMessages([
+            'code' => ['Code caisse invalide.']
+        ]);
     }
+
+    if (!$cashCode->canBeUsedBy($user)) {
+        if ($cashCode->used_at) {
+            throw ValidationException::withMessages([
+                'code' => ['Ce code a déjà été utilisé.']
+            ]);
+        }
+        if ($cashCode->assigned_to && $cashCode->assigned_to !== $user->id) {
+            throw ValidationException::withMessages([
+                'code' => ['Ce code est assigné à un autre utilisateur.']
+            ]);
+        }
+        if ($cashCode->expires_at && $cashCode->expires_at->isPast()) {
+            throw ValidationException::withMessages([
+                'code' => ['Ce code a expiré.']
+            ]);
+        }
+        throw ValidationException::withMessages([
+            'code' => ['Ce code n\'est pas valide.']
+        ]);
+    }
+
+    return DB::transaction(function () use ($user, $cashCode) {
+        $cashCode->update([
+            'used_by' => $user->id,
+            'used_at' => now(),
+            'active' => false,
+        ]);
+
+        // CORRECTION: Utiliser montant_fcfa au lieu de points
+        // Puisque solde_points stocke directement des FCFA
+        $user->solde_points += $cashCode->montant_fcfa;
+        $user->save();
+
+        $transaction = Transaction::create([
+            'user_id' => $user->id,
+            'type' => 'code_caisse',
+            'montant_fcfa' => $cashCode->montant_fcfa,
+            'points' => $cashCode->montant_fcfa, // Stocker le montant FCFA dans 'points' aussi pour cohérence
+            'reference' => Transaction::generateReference(),
+            'description' => "Code caisse: {$cashCode->code}",
+            'metadata' => [
+                'cash_code_id' => $cashCode->id,
+                'code' => $cashCode->code,
+            ],
+            'statut' => 'complete',
+        ]);
+
+        return [
+            'success' => true,
+            'transaction' => [
+                'reference' => $transaction->reference,
+                'montant_fcfa' => $cashCode->montant_fcfa,
+                'points_credites' => $cashCode->montant_fcfa,
+            ],
+            'nouveau_solde' => $user->solde_points,
+        ];
+    });
+}
 
     /**
      * Rechercher un utilisateur pour transfert

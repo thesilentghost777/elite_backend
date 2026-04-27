@@ -12,37 +12,27 @@ use App\Http\Controllers\Api\TrialController;
 use Illuminate\Support\Facades\Route;
 
 // ============================================
-// ROUTES DE PAIEMENT
+// TEST
 // ============================================
-Route::prefix('payment')->group(function () {
-
-    // Routes nécessitant l'authentification
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/initiate-deposit', [PaymentController::class, 'initiateDeposit']);
-        Route::post('/check-status',     [PaymentController::class, 'checkPaymentStatus']);
-    });
-
-    // Webhook MoneyFusion (sans authentification — appelé par MoneyFusion directement)
-    Route::post('/webhook',  [PaymentController::class, 'webhook'])->name('payment.webhook');
-
-    // URL de retour après paiement (sans authentification — ouverte dans la WebView)
-    Route::get('/return',    [PaymentController::class, 'returnUrl'])->name('payment.return');
-});
+Route::get('/test', fn() => response()->json(['message' => 'Ghost API is working!']));
 
 // ============================================
-// ROUTES PUBLIQUES
+// AUTH — PUBLIC ROUTES
 // ============================================
-
-Route::get('/test', function () {
-    return response()->json(['message' => 'Ghost API is working!']);
-});
-
 Route::prefix('auth')->group(function () {
-    Route::post('/register',           [AuthController::class, 'register']);
-    Route::post('/login',              [AuthController::class, 'login']);
-    Route::post('/check-referral-code',[AuthController::class, 'checkReferralCode']);
+
+    // ── Inscription ────────────────────────────────────────────
+    Route::post('/register',            [AuthController::class, 'register']);      // ✅ une seule ligne
+    Route::post('/login',               [AuthController::class, 'login']);
+    Route::post('/social-login',        [AuthController::class, 'socialLogin']);
+    Route::post('/check-referral-code', [AuthController::class, 'checkReferralCode']);
+    Route::post('/verify-email-otp',    [AuthController::class, 'verifyEmailOtp']);
+    Route::post('/resend-email-otp',    [AuthController::class, 'resendEmailOtp']);
 });
 
+// ============================================
+// PUBLIC — PROFILES, PACKS, FAQ
+// ============================================
 Route::get('/profiles',          [ProfileController::class, 'index']);
 Route::get('/profiles/secteurs', [ProfileController::class, 'secteurs']);
 Route::get('/profiles/{id}',     [ProfileController::class, 'show']);
@@ -51,80 +41,87 @@ Route::get('/categories',        [CourseController::class, 'categories']);
 Route::get('/packs',             [CourseController::class, 'packs']);
 Route::get('/packs/{id}',        [CourseController::class, 'packDetails'])->where('id', '[0-9]+');
 
-Route::get('/faq',         [FaqController::class, 'index']);
-Route::get('/faq/search',  [FaqController::class, 'search']);
-Route::get('/faq/popular', [FaqController::class, 'popular']);
-Route::get('/faq/{id}',    [FaqController::class, 'show']);
+Route::get('/faq',               [FaqController::class, 'index']);
+Route::get('/faq/search',        [FaqController::class, 'search']);
+Route::get('/faq/popular',       [FaqController::class, 'popular']);
+Route::get('/faq/{id}',          [FaqController::class, 'show']);
 
 // ============================================
-// ROUTES AUTHENTIFIÉES
+// PAYMENT — WEBHOOK (no auth)
+// ============================================
+Route::post('/payment/webhook',  [PaymentController::class, 'webhook'])->name('payment.webhook');
+Route::get('/payment/return',    [PaymentController::class, 'returnUrl'])->name('payment.return');
+
+// ============================================
+// AUTHENTICATED ROUTES
 // ============================================
 Route::middleware('auth:sanctum')->group(function () {
 
+    // Auth
+    Route::prefix('auth')->group(function () {
+          Route::post('/logout',                 [AuthController::class, 'logout']);
+        Route::get('/profile',                 [AuthController::class, 'profile']);
+        Route::put('/profile',                 [AuthController::class, 'updateProfile']);
+        Route::post('/complete-social-profile',[AuthController::class, 'completeSocialProfile']);
+   
+    });
+
+    // Trial
     Route::get('/trial/status',    [TrialController::class, 'status']);
     Route::post('/trial/start',    [TrialController::class, 'start']);
     Route::post('/trial/activate', [TrialController::class, 'activate']);
 
-    // Auth
-    Route::post('/auth/logout',  [AuthController::class, 'logout']);
-    Route::get('/auth/profile',  [AuthController::class, 'profile']);
-    Route::put('/auth/profile',  [AuthController::class, 'updateProfile']);
+    // Correspondence
+    Route::prefix('correspondence')->group(function () {
+        Route::get('/questions',         [CorrespondenceController::class, 'questions']);
+        Route::post('/submit',           [CorrespondenceController::class, 'submit']);
+        Route::get('/results',           [CorrespondenceController::class, 'results']);
+        Route::post('/choose-profile',   [CorrespondenceController::class, 'chooseProfile']);
+        Route::post('/choose-path',      [CorrespondenceController::class, 'choosePath']);
+    });
 
-    // Correspondance
-    Route::get('/correspondence/questions',        [CorrespondenceController::class, 'questions']);
-    Route::post('/correspondence/submit',          [CorrespondenceController::class, 'submit']);
-    Route::get('/correspondence/results',          [CorrespondenceController::class, 'results']);
-    Route::post('/correspondence/choose-profile',  [CorrespondenceController::class, 'chooseProfile']);
-    Route::post('/correspondence/choose-path',     [CorrespondenceController::class, 'choosePath']);
-
-    // Profils & Roadmaps
+    // Profiles & Roadmaps
     Route::get('/profiles/{id}/roadmap', [ProfileController::class, 'roadmap']);
     Route::get('/my-roadmap',            [ProfileController::class, 'myRoadmap']);
 
-    // Cours
-    Route::get('/packs/recommended',              [CourseController::class, 'recommendedPacks']);
-    Route::get('/packs/{id}/modules',             [CourseController::class, 'packModules'])->where('id', '[0-9]+');
-    Route::get('/modules/{id}/chapters',          [CourseController::class, 'moduleChapters'])->where('id', '[0-9]+');
-    Route::get('/chapters/{id}/lessons',          [CourseController::class, 'chapterLessons'])->where('id', '[0-9]+');
-    Route::get('/chapters/{id}/quiz',             [CourseController::class, 'chapterQuiz'])->where('id', '[0-9]+');
-    Route::get('/chapters/{id}/quiz-info',        [CourseController::class, 'getChapterQuizInfo']);
-    Route::post('/chapters/{id}/unlock-by-referral', [CourseController::class, 'unlockByReferral'])->where('id', '[0-9]+');
-    Route::get('/lessons/{id}',                   [CourseController::class, 'lesson'])->where('id', '[0-9]+');
-    Route::post('/lessons/{id}/complete',         [CourseController::class, 'completeLesson'])->where('id', '[0-9]+');
-    Route::post('/quiz/{id}/submit',              [CourseController::class, 'submitQuiz'])->where('id', '[0-9]+');
+    // Courses
+    Route::get('/packs/recommended',                       [CourseController::class, 'recommendedPacks']);
+    Route::get('/packs/{id}/modules',                      [CourseController::class, 'packModules'])->where('id', '[0-9]+');
+    Route::get('/modules/{id}/chapters',                   [CourseController::class, 'moduleChapters'])->where('id', '[0-9]+');
+    Route::get('/chapters/{id}/lessons',                   [CourseController::class, 'chapterLessons'])->where('id', '[0-9]+');
+    Route::get('/chapters/{id}/quiz',                      [CourseController::class, 'chapterQuiz'])->where('id', '[0-9]+');
+    Route::get('/chapters/{id}/quiz-info',                 [CourseController::class, 'getChapterQuizInfo']);
+    Route::post('/chapters/{id}/unlock-by-referral',       [CourseController::class, 'unlockByReferral'])->where('id', '[0-9]+');
+    Route::get('/lessons/{id}',                            [CourseController::class, 'lesson'])->where('id', '[0-9]+');
+    Route::post('/lessons/{id}/complete',                  [CourseController::class, 'completeLesson'])->where('id', '[0-9]+');
+    Route::post('/quiz/{id}/submit',                       [CourseController::class, 'submitQuiz'])->where('id', '[0-9]+');
 
     // Wallet
-    Route::get('/wallet/balance',        [WalletController::class, 'balance']);
-    Route::post('/wallet/use-cash-code', [WalletController::class, 'useCashCode']);
-    Route::post('/wallet/find-user',     [WalletController::class, 'findUser']);
-    Route::post('/wallet/transfer',      [WalletController::class, 'transfer']);
-    Route::get('/wallet/transactions',   [WalletController::class, 'transactions']);
-    Route::post('/packs/{id}/purchase',  [WalletController::class, 'purchasePack'])->where('id', '[0-9]+');
-    Route::get('/user/packs',            [WalletController::class, 'myPacks']);
+    Route::prefix('wallet')->group(function () {
+        Route::get('/balance',       [WalletController::class, 'balance']);
+        Route::post('/use-cash-code',[WalletController::class, 'useCashCode']);
+        Route::post('/find-user',    [WalletController::class, 'findUser']);
+        Route::post('/transfer',     [WalletController::class, 'transfer']);
+        Route::get('/transactions',  [WalletController::class, 'transactions']);
+    });
+    Route::post('/packs/{id}/purchase', [WalletController::class, 'purchasePack'])->where('id', '[0-9]+');
+    Route::get('/user/packs',           [WalletController::class, 'myPacks']);
 
-    // Parrainage
-    Route::get('/referral/my-code',  [ReferralController::class, 'myCode']);
-    Route::get('/referral/stats',    [ReferralController::class, 'stats']);
-    Route::get('/referral/history',  [ReferralController::class, 'history']);
-    Route::get('/referral/my-parrain',[ReferralController::class, 'myParrain']);
-});
+    // Referral
+    Route::prefix('referral')->group(function () {
+        Route::get('/my-code',             [ReferralController::class, 'myCode']);
+        Route::get('/stats',               [ReferralController::class, 'stats']);
+        Route::get('/history',             [ReferralController::class, 'history']);
+        Route::get('/my-parrain',          [ReferralController::class, 'myParrain']);
+        Route::post('/create-project',     [ReferralController::class, 'createProject']);
+        Route::post('/request-withdrawal', [ReferralController::class, 'requestWithdrawal']);
+        Route::post('/confirm-withdrawal', [ReferralController::class, 'confirmWithdrawal']);
+    });
 
-// ── REFERRAL (nouvelles routes) ──────────────────────────────────────────
-Route::middleware('auth:sanctum')->prefix('referral')->group(function () {
-    Route::get('/my-code', [ReferralController::class, 'myCode']);
-    Route::get('/stats', [ReferralController::class, 'stats']);
-    Route::get('/history', [ReferralController::class, 'history']);
-    Route::get('/my-parrain', [ReferralController::class, 'myParrain']);
-    Route::post('/create-project', [ReferralController::class, 'createProject']);
-    Route::post('/request-withdrawal', [ReferralController::class, 'requestWithdrawal']);
-    Route::post('/confirm-withdrawal', [ReferralController::class, 'confirmWithdrawal']);
+    // Payment (authenticated)
+    Route::prefix('payment')->group(function () {
+        Route::post('/initiate-pack',    [PaymentController::class, 'initiatePackPayment']);
+        Route::post('/initiate-deposit', [PaymentController::class, 'initiateDeposit']);
+        Route::post('/check-status',     [PaymentController::class, 'checkPaymentStatus']);
+    });
 });
-
-// ── PAYMENT ──────────────────────────────────────────────────────────────
-Route::middleware('auth:sanctum')->prefix('payment')->group(function () {
-    Route::post('/initiate-pack', [PaymentController::class, 'initiatePackPayment']);
-    Route::post('/initiate-deposit', [PaymentController::class, 'initiateDeposit']);
-    Route::post('/check-status', [PaymentController::class, 'checkPaymentStatus']);
-    Route::get('/return', [PaymentController::class, 'returnUrl']);
-});
-Route::post('/payment/webhook', [PaymentController::class, 'webhook']);

@@ -13,101 +13,136 @@ class AuthController extends Controller
 {
     public function __construct(private AuthService $authService) {}
 
+    // ── Inscription ───────────────────────────────────────────
     public function register(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'nom' => 'required|string|max:255',
-            'prenom' => 'required|string|max:255',
-            'telephone' => 'required|string|unique:elite_users,telephone',
-            'email' => 'nullable|email|unique:elite_users,email',
-            'dernier_diplome' => 'required|in:primaire,secondaire,universitaire',            'ville' => 'required|string|max:255',
-            'password' => 'required|string|min:6|confirmed',
-            'referral_code' => 'nullable|string',
+            'nom'              => 'required|string|max:255',
+            'prenom'           => 'required|string|max:255',
+            'telephone'        => 'required_without:email|nullable|string|unique:elite_users,telephone',
+            'email'            => 'required_without:telephone|nullable|email|unique:elite_users,email',
+            'dernier_diplome'  => 'required|in:primaire,secondaire,universitaire',
+            'ville'            => 'required|string|max:255',
+            'password'         => 'required|string|min:6|confirmed',
+            'referral_code'    => 'nullable|string',
         ]);
 
-        $user = $this->authService->register($data);
-        $loginData = $this->authService->login(['telephone' => $data['telephone'], 'password' => $data['password']]);
+        $result = $this->authService->register($data);
 
-        return response()->json(['success' => true, 'data' => $loginData], 201);
+        if ($result['needs_otp'] ?? false) {
+            return response()->json(['success' => true, 'data' => $result]);
+        }
+
+        return response()->json(['success' => true, 'data' => $result], 201);
     }
 
+    // ── Connexion classique ───────────────────────────────────
     public function login(Request $request): JsonResponse
     {
-        $credentials = $request->validate([
-            'telephone' => 'required|string',
-            'password' => 'required|string',
+        $data = $request->validate([
+            'telephone' => 'required_without:email|nullable|string',
+            'email'     => 'required_without:telephone|nullable|email',
+            'password'  => 'required|string',
         ]);
 
-        $data = $this->authService->login($credentials);
-        return response()->json(['success' => true, 'data' => $data]);
+        $result = $this->authService->login(
+            $data['telephone'] ?? null,
+            $data['email']     ?? null,
+            $data['password']
+        );
+
+        return response()->json(['success' => true, 'data' => $result]);
     }
 
-    public function logout(Request $request): JsonResponse
+    // ── Connexion sociale (Google / Apple) ────────────────────
+    public function socialLogin(Request $request): JsonResponse
     {
-        $this->authService->logout($request->user());
-        return response()->json(['success' => true, 'message' => 'Déconnexion réussie']);
+        $data = $request->validate([
+            'firebase_token' => 'required|string',
+            'provider'       => 'required|in:google,apple',
+        ]);
+
+        $result = $this->authService->socialLogin($data['firebase_token'], $data['provider']);
+        return response()->json(['success' => true, 'data' => $result]);
     }
 
+    // ── Complétion profil social ──────────────────────────────
+    public function completeSocialProfile(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'nom'             => 'required|string|max:255',
+            'prenom'          => 'required|string|max:255',
+            'dernier_diplome' => 'required|in:primaire,secondaire,universitaire',
+            'ville'           => 'required|string|max:255',
+            'referral_code'   => 'nullable|string',
+            'telephone'       => 'nullable|string|unique:elite_users,telephone,' . $request->user()->id,
+            'password'        => 'nullable|string|min:6|confirmed',
+        ]);
+
+        $result = $this->authService->completeSocialProfile($request->user(), $data);
+        return response()->json(['success' => true, 'data' => $result]);
+    }
+
+    // ── OTP Email ─────────────────────────────────────────────
+    public function verifyEmailOtp(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => 'required|email',
+            'code'  => 'required|string|size:6',
+        ]);
+
+        $result = $this->authService->verifyEmailOtp($data['email'], $data['code']);
+        return response()->json(['success' => true, 'data' => $result]);
+    }
+
+    public function resendEmailOtp(Request $request): JsonResponse
+    {
+        $request->validate(['email' => 'required|email']);
+        $this->authService->resendEmailOtp($request->email);
+        return response()->json(['success' => true, 'message' => 'Code renvoyé avec succès.']);
+    }
+
+    // ── Profil ────────────────────────────────────────────────
     public function profile(Request $request): JsonResponse
     {
-        $user = $request->user();
-        
-        // Charger le profil de carrière choisi si disponible
+        $user         = $request->user();
         $careerProfile = null;
         if ($user->profile_chosen) {
             $profileChoice = $user->profileChoice()->with('profile')->first();
-            if ($profileChoice) {
-                $careerProfile = $profileChoice->profile;
-            }
+            $careerProfile  = $profileChoice?->profile;
         }
 
         return response()->json([
-            'success' => true, 
-            'data' => [
-                'user' => $user,
-                'career_profile' => $careerProfile,
+            'success' => true,
+            'data'    => [
+                'user'                    => $user,
+                'career_profile'          => $careerProfile,
+                'needs_completion'        => !$user->isProfileComplete(),
                 'requires_correspondence' => !$user->correspondence_completed,
                 'requires_profile_choice' => $user->correspondence_completed && !$user->profile_chosen,
-            ]
+            ],
         ]);
     }
 
     public function updateProfile(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'nom' => 'sometimes|string|max:255',
-            'prenom' => 'sometimes|string|max:255',
-            'email' => 'sometimes|nullable|email|unique:elite_users,email,' . $request->user()->id,
-            'ville' => 'sometimes|string|max:255',
-            'password' => 'sometimes|string|min:6|confirmed',
+            'nom'       => 'sometimes|string|max:255',
+            'prenom'    => 'sometimes|string|max:255',
+            'email'     => 'sometimes|nullable|email|unique:elite_users,email,' . $request->user()->id,
+            'ville'     => 'sometimes|string|max:255',
+            'password'  => 'sometimes|string|min:6|confirmed',
             'photo_url' => 'sometimes|nullable|string',
         ]);
 
-        // Si un mot de passe est fourni, le hasher
-        if (isset($data['password'])) {
-            $data['password'] = Hash::make($data['password']);
-            // Retirer password_confirmation car non nécessaire dans la DB
-            unset($data['password_confirmation']);
-        }
-
         $user = $this->authService->updateProfile($request->user(), $data);
-        
-        // Charger le profil de carrière si disponible
-        $careerProfile = null;
-        if ($user->profile_chosen) {
-            $profileChoice = $user->profileChoice()->with('profile')->first();
-            if ($profileChoice) {
-                $careerProfile = $profileChoice->profile;
-            }
-        }
+        return response()->json(['success' => true, 'data' => ['user' => $user->fresh()]]);
+    }
 
-        return response()->json([
-            'success' => true, 
-            'data' => [
-                'user' => $user->fresh(),
-                'career_profile' => $careerProfile,
-            ]
-        ]);
+    public function logout(Request $request): JsonResponse
+    {
+        $this->authService->logout($request->user());
+        return response()->json(['success' => true, 'message' => 'Déconnexion réussie']);
     }
 
     public function checkReferralCode(Request $request): JsonResponse
