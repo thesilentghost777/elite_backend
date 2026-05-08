@@ -85,7 +85,7 @@ class TrialController extends Controller
     public function activate(Request $request)
     {
         $user           = $request->user();
-        $activationCost = 3; // 3 points = 1 000 FCFA
+        $activationCost = 1000; // 3 points = 1 000 FCFA
 
         if ($user->account_activated) {
             return response()->json([

@@ -1,26 +1,32 @@
-# Elite 2.0 - Collection Postman Complète
+# Boulangerie Premium API - Collection Postman
 
 ## Base URL: `http://localhost:8000/api`
+
+### Variables
+| Variable | Description |
+|---|---|
+| `{{TOKEN}}` | Token utilisateur (obtenu après login) |
+| `{{ADMIN_TOKEN}}` | Token admin (obtenu via login admin) |
+| `{{COUPON}}` | Coupon (obtenu après commande anonyme) |
+| `{{ORDER_ID}}` | ID de commande |
+| `{{PRODUCT_ID}}` | ID de produit |
+| `{{CATEGORY_ID}}` | ID de catégorie |
 
 ---
 
 ## 🔐 1. AUTHENTIFICATION
 
-### 1.1 Inscription
+### 1.1 Inscription (téléphone)
 ```http
 POST /auth/register
 Content-Type: application/json
 
 {
-    "nom": "Kamga",
-    "prenom": "Jean",
-    "telephone": "699000001",
-    "email": "jean@email.com",
-    "dernier_diplome": "BAC",
-    "ville": "Douala",
+    "nom": "Jean Dupont",
+    "telephone": "33600000001",
+    "adresse": "12 rue du Pain, Paris",
     "password": "password123",
-    "password_confirmation": "password123",
-    "referral_code": "ELITE2024"
+    "password_confirmation": "password123"
 }
 
 Response 201:
@@ -28,29 +34,431 @@ Response 201:
     "success": true,
     "message": "Inscription réussie",
     "data": {
-        "user": {...},
-        "token": "1|xxxxxxxxxxxx"
+        "user": { "id": 1, "nom": "Jean Dupont", "telephone": "33600000001", ... },
+        "token": "eyJhbGci..."
     }
 }
 ```
+> ✅ Retourne directement le token. `TOKEN` est mis à jour automatiquement.
 
-### 1.2 Connexion
+---
+
+### 1.2 Inscription (email + OTP)
+```http
+POST /auth/register
+Content-Type: application/json
+
+{
+    "nom": "Marie Curie",
+    "email": "marie@example.com",
+    "adresse": "Paris",
+    "password": "password123",
+    "password_confirmation": "password123"
+}
+
+Response 201:
+{
+    "success": true,
+    "message": "Inscription réussie",
+    "data": {
+        "requireOtp": true,
+        "message": "Un code OTP a été envoyé à votre email",
+        "user": { ... }
+    }
+}
+```
+> ⚠️ Pas de token immédiat — vérifier l'OTP d'abord (voir 1.3).
+
+---
+
+### 1.3 Vérifier OTP
+```http
+POST /auth/verify-otp
+Content-Type: application/json
+
+{
+    "email": "marie@example.com",
+    "code": "123456"
+}
+
+Response 200:
+{
+    "success": true,
+    "data": {
+        "token": "eyJhbGci..."
+    }
+}
+```
+> ✅ `TOKEN` est mis à jour automatiquement après vérification.
+
+---
+
+### 1.4 Renvoyer OTP
+```http
+POST /auth/resend-otp
+Content-Type: application/json
+
+{
+    "email": "marie@example.com"
+}
+```
+
+---
+
+### 1.5 Connexion (téléphone)
 ```http
 POST /auth/login
 Content-Type: application/json
 
 {
-    "telephone": "699000001",
+    "telephone": "33600000001",
     "password": "password123"
 }
 
 Response 200:
 {
     "success": true,
-    "message": "Connexion réussie",
     "data": {
-        "user": {...},
-        "token": "2|xxxxxxxxxxxx"
+        "user": { ... },
+        "token": "eyJhbGci..."
+    }
+}
+```
+> ✅ `TOKEN` est mis à jour automatiquement.
+
+---
+
+### 1.6 Connexion (email)
+```http
+POST /auth/login
+Content-Type: application/json
+
+{
+    "email": "marie@example.com",
+    "password": "password123"
+}
+```
+
+---
+
+### 1.7 Connexion ADMIN
+```http
+POST /auth/login
+Content-Type: application/json
+
+{
+    "email": "admin@boulangerie.fr",
+    "password": "admin1234"
+}
+
+Response 200:
+{
+    "success": true,
+    "data": {
+        "token": "eyJhbGci..."
+    }
+}
+```
+> ✅ `ADMIN_TOKEN` est mis à jour automatiquement.
+
+---
+
+### 1.8 Connexion Firebase (Google / Apple)
+```http
+POST /auth/firebase
+Content-Type: application/json
+
+{
+    "idToken": "<FIREBASE_ID_TOKEN_OBTENU_COTE_FRONT>",
+    "nom": "Optionnel si nouveau compte"
+}
+```
+> ℹ️ Le front authentifie l'utilisateur via Firebase Auth, récupère le `idToken` et l'envoie ici. Le backend le vérifie et retourne un JWT.
+
+---
+
+### 1.9 Profil
+```http
+GET /auth/profile
+Authorization: Bearer {{TOKEN}}
+```
+
+---
+
+### 1.10 Modifier profil
+```http
+PUT /auth/profile
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+    "nom": "Jean Dupont Jr",
+    "adresse": "34 av. des Champs, Lyon"
+}
+```
+
+---
+
+### 1.11 Déconnexion
+```http
+POST /auth/logout
+Authorization: Bearer {{TOKEN}}
+```
+
+---
+
+## 📂 2. CATEGORIES
+
+### 2.1 Liste catégories (public)
+```http
+GET /categories
+```
+
+---
+
+### 2.2 Créer catégorie (ADMIN)
+```http
+POST /categories
+Authorization: Bearer {{ADMIN_TOKEN}}
+Content-Type: application/json
+
+{
+    "nom": "Macarons",
+    "type": "PATISSERIE"
+}
+
+Response 201:
+{
+    "success": true,
+    "data": { "id": 5, "nom": "Macarons", ... }
+}
+```
+> ✅ `CATEGORY_ID` est mis à jour automatiquement.
+
+---
+
+### 2.3 Modifier catégorie (ADMIN)
+```http
+PUT /categories/{{CATEGORY_ID}}
+Authorization: Bearer {{ADMIN_TOKEN}}
+Content-Type: application/json
+
+{
+    "nom": "Macarons fins"
+}
+```
+
+---
+
+### 2.4 Supprimer catégorie (ADMIN)
+```http
+DELETE /categories/{{CATEGORY_ID}}
+Authorization: Bearer {{ADMIN_TOKEN}}
+```
+
+---
+
+## 🥐 3. PRODUITS
+
+### 3.1 Liste produits (public)
+```http
+GET /products?type=BOULANGERIE
+```
+| Paramètre | Valeurs | Obligatoire |
+|---|---|---|
+| `type` | `BOULANGERIE` \| `PATISSERIE` | Non |
+| `categoryId` | ID de catégorie | Non |
+| `q` | Recherche texte | Non |
+
+---
+
+### 3.2 Détail produit
+```http
+GET /products/{{PRODUCT_ID}}
+```
+
+---
+
+### 3.3 Créer produit (ADMIN, multipart)
+```http
+POST /products
+Authorization: Bearer {{ADMIN_TOKEN}}
+Content-Type: multipart/form-data
+
+nom          = "Croissant au beurre"
+description  = "Croissant pur beurre AOP"
+prix         = 1.50
+categoryId   = 1
+stock        = 100
+image        = <fichier image>
+
+Response 201:
+{
+    "success": true,
+    "data": { "id": 10, "nom": "Croissant au beurre", ... }
+}
+```
+> ✅ `PRODUCT_ID` est mis à jour automatiquement.
+
+---
+
+### 3.4 Modifier produit (ADMIN)
+```http
+PUT /products/{{PRODUCT_ID}}
+Authorization: Bearer {{ADMIN_TOKEN}}
+Content-Type: multipart/form-data
+
+prix   = 1.70
+image  = <fichier image> (optionnel)
+```
+
+---
+
+### 3.5 Supprimer produit (ADMIN)
+```http
+DELETE /products/{{PRODUCT_ID}}
+Authorization: Bearer {{ADMIN_TOKEN}}
+```
+
+---
+
+### 3.6 Tous les produits (ADMIN)
+```http
+GET /products/admin/all
+Authorization: Bearer {{ADMIN_TOKEN}}
+```
+
+---
+
+## 🛒 4. COMMANDES
+
+### 4.1 Passer commande (utilisateur connecté)
+```http
+POST /orders
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+    "items": [
+        { "productId": 1, "quantite": 2 },
+        { "productId": 2, "quantite": 1 }
+    ],
+    "adresseLivraison": "12 rue du Pain, Paris",
+    "notes": "Livraison vers 9h",
+    "pickupDate": "2026-05-10T09:00:00.000Z"
+}
+
+Response 201:
+{
+    "success": true,
+    "data": {
+        "order": { "id": 42, ... }
+    }
+}
+```
+> ✅ `ORDER_ID` est mis à jour automatiquement.
+
+---
+
+### 4.2 Passer commande (ANONYME)
+```http
+POST /orders
+Content-Type: application/json
+
+{
+    "items": [
+        { "productId": 1, "quantite": 3 }
+    ],
+    "clientNom": "Paul Anonyme",
+    "clientTelephone": "33600000099",
+    "clientEmail": "paul@example.com",
+    "notes": "À récupérer demain matin"
+}
+
+Response 201:
+{
+    "success": true,
+    "data": {
+        "coupon": "XXXX-YYYY",
+        "whatsappUrl": "https://wa.me/..."
+    }
+}
+```
+> ℹ️ Pas de token requis. Le backend renvoie un `coupon` + `whatsappUrl` pour finaliser par téléphone/WhatsApp.  
+> ✅ `COUPON` est mis à jour automatiquement.
+
+---
+
+### 4.3 Suivi commande par coupon
+```http
+POST /orders/track
+Content-Type: application/json
+
+{
+    "coupon": "{{COUPON}}"
+}
+```
+
+---
+
+### 4.4 Mes commandes (utilisateur connecté)
+```http
+GET /orders/me
+Authorization: Bearer {{TOKEN}}
+```
+
+---
+
+## ⚙️ 5. ADMIN
+
+### 5.1 Toutes les commandes
+```http
+GET /orders?status=PENDING
+Authorization: Bearer {{ADMIN_TOKEN}}
+```
+| Paramètre | Valeurs | Obligatoire |
+|---|---|---|
+| `status` | `PENDING` \| `CONFIRMED` \| `PREPARING` \| `READY` \| `DELIVERED` \| `CANCELLED` | Non |
+| `from` | `2026-01-01` | Non |
+| `to` | `2026-12-31` | Non |
+
+---
+
+### 5.2 Statistiques commandes
+```http
+GET /orders/stats
+Authorization: Bearer {{ADMIN_TOKEN}}
+```
+
+---
+
+### 5.3 Détail commande
+```http
+GET /orders/{{ORDER_ID}}
+Authorization: Bearer {{ADMIN_TOKEN}}
+```
+
+---
+
+### 5.4 Changer statut commande
+```http
+PUT /orders/{{ORDER_ID}}/status
+Authorization: Bearer {{ADMIN_TOKEN}}
+Content-Type: application/json
+
+{
+    "status": "CONFIRMED"
+}
+```
+> Statuts disponibles : `PENDING` → `CONFIRMED` → `PREPARING` → `READY` → `DELIVERED` | `CANCELLED`
+
+---
+
+### 5.5 Liste utilisateurs
+```http
+GET /users
+Authorization: Bearer {{ADMIN_TOKEN}}
+```xxxx"
     }
 }
 ```

@@ -27,12 +27,7 @@
                     <p class="text-xs" style="color:rgba(255,255,255,0.50);">Livres et ressources PDF gratuits</p>
                 </div>
             </div>
-            <a href="/espace/communaute"
-               class="inline-flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl transition-all hover:opacity-90"
-               style="background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.20);color:#fff;">
-                <i class="fas fa-comments"></i>
-                <span class="hidden sm:inline">Communauté</span>
-            </a>
+           
         </div>
     </div>
 

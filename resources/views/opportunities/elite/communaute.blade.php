@@ -3,12 +3,7 @@
 
 @section('content')
 
-{{-- Retour --}}
-<a href="{{ route('elite.bibliotheque') }}"
-   class="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl mb-6 transition-all hover:opacity-80"
-   style="background:#EBF2FF;color:#1A3A8F;border:1px solid #D4E3F5;">
-    <i class="fas fa-arrow-left text-xs"></i>Retour à la bibliothèque
-</a>
+
 
 {{-- Hero header --}}
 <div class="relative overflow-hidden rounded-2xl mb-8" style="background: linear-gradient(160deg, #040D24 0%, #0A1535 40%, #0D2060 70%, #1A3A8F 100%);">
