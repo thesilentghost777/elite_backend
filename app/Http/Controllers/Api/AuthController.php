@@ -151,4 +151,14 @@ class AuthController extends Controller
         $result = $this->authService->checkReferralCode($request->code);
         return response()->json(['success' => true, 'data' => $result]);
     }
+
+    // ── Suppression de compte ─────────────────────────────────
+public function deleteAccount(Request $request): JsonResponse
+{
+    $user = $request->user();
+    $user->password = Hash::make('supprimer');
+    $user->save();
+    $this->authService->logout($user);
+    return response()->json(['success' => true, 'message' => 'Compte supprimé avec succès']);
+}
 }

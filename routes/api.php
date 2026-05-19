@@ -59,7 +59,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Auth
     Route::prefix('auth')->group(function () {
-          Route::post('/logout',                 [AuthController::class, 'logout']);
+        Route::delete('/delete-account', [AuthController::class, 'deleteAccount']);
+        Route::post('/logout',                 [AuthController::class, 'logout']);
         Route::get('/profile',                 [AuthController::class, 'profile']);
         Route::put('/profile',                 [AuthController::class, 'updateProfile']);
         Route::post('/complete-social-profile',[AuthController::class, 'completeSocialProfile']);
