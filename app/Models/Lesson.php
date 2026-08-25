@@ -4,17 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Lesson extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'module_id',
         'chapter_id',
         'titre',
         'contenu_texte',
         'url_web',
         'url_video',
+        'url_video_explication',
+        'url_video_pratique',
         'ordre',
         'duree_minutes',
         'active',
@@ -22,14 +27,21 @@ class Lesson extends Model
 
     protected $casts = [
         'active' => 'boolean',
+        'ordre' => 'integer',
+        'duree_minutes' => 'integer',
     ];
 
-    public function chapter()
+    public function module(): BelongsTo
+    {
+        return $this->belongsTo(Module::class, 'module_id');
+    }
+
+    public function chapter(): BelongsTo
     {
         return $this->belongsTo(Chapter::class, 'chapter_id');
     }
 
-    public function progress()
+    public function progress(): HasMany
     {
         return $this->hasMany(LessonProgress::class, 'lesson_id');
     }

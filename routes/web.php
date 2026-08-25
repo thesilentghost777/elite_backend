@@ -11,8 +11,12 @@ use App\Http\Controllers\Admin\ProfileController;
 use App\Http\Controllers\Admin\CorrespondenceController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\TransactionController;
+use App\Http\Controllers\Admin\ComptabiliteController;
 use App\Http\Controllers\OpportunityController;
 use App\Http\Controllers\Web\RegisterController;
+use App\Http\Controllers\PartnerWebAuthController;
+use App\Http\Controllers\PartnerWebController;
+use App\Http\Controllers\Admin\PartnerController as AdminPartnerController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,9 +33,32 @@ Route::get('/', function () {
     return redirect()->route('admin.dashboard');
 });
 
+Route::prefix('partenaire')->name('partner.')->group(function () {
+    Route::get('/login', [PartnerWebAuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [PartnerWebAuthController::class, 'login'])->name('login.submit');
+    Route::middleware('auth:partner_web')->group(function () {
+        Route::get('/', [PartnerWebController::class, 'dashboard'])->name('dashboard');
+        Route::get('/comptabilite', [PartnerWebController::class, 'comptabilite'])->name('comptabilite');
+        Route::get('/comptabilite/rapport', [PartnerWebController::class, 'globalReport'])->name('comptabilite.report');
+        Route::get('/comptabilite/apprenant/{learner}', [PartnerWebController::class, 'learnerReport'])->name('comptabilite.learner');
+        Route::post('/installments/{installment}/pay-counter', [PartnerWebController::class, 'markInstallmentPaid'])->name('installments.pay-counter');
+        Route::get('/plans', [PartnerWebController::class, 'plans'])->name('plans');
+        Route::post('/plans', [PartnerWebController::class, 'savePlan'])->name('plans.save');
+        Route::delete('/plans/{plan}', [PartnerWebController::class, 'deletePlan'])->name('plans.delete');
+        Route::get('/horaires', [PartnerWebController::class, 'schedules'])->name('schedules');
+        Route::post('/horaires', [PartnerWebController::class, 'saveSchedule'])->name('schedules.save');
+        Route::delete('/horaires/{schedule}', [PartnerWebController::class, 'deleteSchedule'])->name('schedules.delete');
+        Route::get('/centres', [PartnerWebController::class, 'centres'])->name('centres');
+        Route::post('/logout', [PartnerWebAuthController::class, 'logout'])->name('logout');
+    });
+});
+
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('partners', [AdminPartnerController::class, 'index'])->name('partners.index');
+    Route::post('partners', [AdminPartnerController::class, 'store'])->name('partners.store');
+    Route::patch('partners/{partner}/toggle', [AdminPartnerController::class, 'toggle'])->name('partners.toggle');
 
     // Users Management
     Route::resource('users', UserController::class)->except(['create', 'store']);
@@ -46,34 +73,34 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // Modules
     Route::get('packs/{pack}/modules/create', [ModuleController::class, 'create'])->name('modules.create');
     Route::post('packs/{pack}/modules', [ModuleController::class, 'store'])->name('modules.store');
+    Route::get('modules/{module}', [ModuleController::class, 'show'])->name('modules.show');
     Route::get('modules/{module}/edit', [ModuleController::class, 'edit'])->name('modules.edit');
     Route::put('modules/{module}', [ModuleController::class, 'update'])->name('modules.update');
     Route::delete('modules/{module}', [ModuleController::class, 'destroy'])->name('modules.destroy');
 
-    // Chapters
-    Route::get('modules/{module}/chapters/create', [ChapterController::class, 'create'])->name('chapters.create');
-    Route::post('modules/{module}/chapters', [ChapterController::class, 'store'])->name('chapters.store');
-    Route::get('chapters/{chapter}', [ChapterController::class, 'show'])->name('chapters.show');
-    Route::get('chapters/{chapter}/edit', [ChapterController::class, 'edit'])->name('chapters.edit');
-    Route::put('chapters/{chapter}', [ChapterController::class, 'update'])->name('chapters.update');
-    Route::delete('chapters/{chapter}', [ChapterController::class, 'destroy'])->name('chapters.destroy');
-
-    // Lessons
-    Route::get('chapters/{chapter}/lessons/create', [LessonController::class, 'create'])->name('lessons.create');
-    Route::post('chapters/{chapter}/lessons', [LessonController::class, 'store'])->name('lessons.store');
+    // Lessons (Directly under Module)
+    Route::get('modules/{module}/lessons/create', [LessonController::class, 'create'])->name('lessons.create');
+    Route::post('modules/{module}/lessons', [LessonController::class, 'store'])->name('lessons.store');
     Route::get('lessons/{lesson}/edit', [LessonController::class, 'edit'])->name('lessons.edit');
     Route::put('lessons/{lesson}', [LessonController::class, 'update'])->name('lessons.update');
     Route::delete('lessons/{lesson}', [LessonController::class, 'destroy'])->name('lessons.destroy');
 
-    // Quizzes
-    Route::get('chapters/{chapter}/quiz/create', [QuizController::class, 'create'])->name('quizzes.create');
-    Route::post('chapters/{chapter}/quiz', [QuizController::class, 'store'])->name('quizzes.store');
+    // Quizzes (Directly under Module)
+    Route::get('modules/{module}/quiz/create', [QuizController::class, 'create'])->name('quizzes.create');
+    Route::post('modules/{module}/quiz', [QuizController::class, 'store'])->name('quizzes.store');
     Route::get('quizzes/{quiz}', [QuizController::class, 'show'])->name('quizzes.show');
     Route::get('quizzes/{quiz}/edit', [QuizController::class, 'edit'])->name('quizzes.edit');
     Route::put('quizzes/{quiz}', [QuizController::class, 'update'])->name('quizzes.update');
     Route::delete('quizzes/{quiz}', [QuizController::class, 'destroy'])->name('quizzes.destroy');
     Route::post('quizzes/{quiz}/questions', [QuizController::class, 'addQuestion'])->name('quizzes.add-question');
+    Route::put('questions/{question}', [QuizController::class, 'updateQuestion'])->name('questions.update');
     Route::delete('questions/{question}', [QuizController::class, 'deleteQuestion'])->name('questions.destroy');
+
+    // Chapters (Legacy Compatibility)
+    Route::get('chapters/{chapter}', [ChapterController::class, 'show'])->name('chapters.show');
+    Route::get('chapters/{chapter}/edit', [ChapterController::class, 'edit'])->name('chapters.edit');
+    Route::put('chapters/{chapter}', [ChapterController::class, 'update'])->name('chapters.update');
+    Route::delete('chapters/{chapter}', [ChapterController::class, 'destroy'])->name('chapters.destroy');
 
     // Career Profiles
     Route::resource('profiles', ProfileController::class);
@@ -98,6 +125,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::delete('cash-codes/{cashCode}', [TransactionController::class, 'deleteCashCode'])->name('cash-codes.destroy');
     Route::get('settings/payments', [TransactionController::class, 'settings'])->name('settings.payments');
     Route::put('settings/payments', [TransactionController::class, 'updateSettings'])->name('settings.payments.update');
+
+    // Comptabilité & Suivi des Apprenants
+    Route::get('comptabilite', [ComptabiliteController::class, 'index'])->name('comptabilite.index');
+    Route::get('comptabilite/rapport', [ComptabiliteController::class, 'report'])->name('comptabilite.report');
+    Route::get('comptabilite/apprenant/{user}', [ComptabiliteController::class, 'learnerReport'])->name('comptabilite.learner');
 });
 
 // ─── Routes publiques : soumission d'offres ───

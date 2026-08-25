@@ -37,6 +37,11 @@ class UserPack extends Model
         return $this->belongsTo(Pack::class, 'pack_id');
     }
 
+    public function installments()
+    {
+        return $this->hasMany(UserPaymentInstallment::class);
+    }
+
     public function isActive(): bool
     {
         return $this->statut === 'actif' && 
@@ -45,17 +50,19 @@ class UserPack extends Model
 
     public function calculateProgression(): float
     {
-        $pack = $this->pack()->with('modules.chapters.lessons')->first();
+        $pack = $this->pack()->with('modules.lessons')->first();
+        if (!$pack) {
+            return 0;
+        }
+
         $totalLessons = 0;
         $completedLessons = 0;
 
         foreach ($pack->modules as $module) {
-            foreach ($module->chapters as $chapter) {
-                foreach ($chapter->lessons as $lesson) {
-                    $totalLessons++;
-                    if ($lesson->isCompletedBy($this->user)) {
-                        $completedLessons++;
-                    }
+            foreach ($module->lessons as $lesson) {
+                $totalLessons++;
+                if ($lesson->isCompletedBy($this->user)) {
+                    $completedLessons++;
                 }
             }
         }

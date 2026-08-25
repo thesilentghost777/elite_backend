@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\PaymentService;
+use App\Models\SystemSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -22,13 +23,16 @@ class WalletController extends Controller
             'progression' => $up->progression ?? 0,
         ])->toArray();
 
-        // solde_points = FCFA directement (10000 points = 10000 FCFA)
-        $soldeFcfa = (float) $user->solde_points;
+        $points = (float) $user->solde_points;
+        $soldeFcfa = $points * SystemSetting::getTauxConversionFcfaPoints();
 
         return response()->json([
             'success' => true,
             'data' => [
+                'points'             => $points,
+                'equivalent_fcfa'    => $soldeFcfa,
                 'solde_fcfa'         => $soldeFcfa,
+                'taux_conversion'    => SystemSetting::getTauxConversionFcfaPoints(),
                 'formations'         => $formationsData,
                 'total_formations'   => $myPacks->count(),
                 'account_activated'  => $user->account_activated ?? false,

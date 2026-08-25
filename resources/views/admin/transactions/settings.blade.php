@@ -476,6 +476,38 @@
         </div>
     </div>
 
+    <div class="setting-card">
+        <div class="setting-header"><h2>Récompenses et accès par points</h2></div>
+        <div class="setting-body">
+            <p class="setting-description">Configure les points gagnés avec les quiz et le nombre minimal de points pour voir chaque type de contenu.</p>
+            <div class="setting-group">
+                <label class="setting-label">Points par bonne réponse au quiz</label>
+                <div class="input-with-unit"><input type="number" name="points_par_bonne_reponse_quiz" class="form-input" min="0" value="{{ old('points_par_bonne_reponse_quiz', $settings['points_par_bonne_reponse_quiz'] ?? 500) }}" required><span class="input-unit">Points</span></div>
+            </div>
+            <div class="setting-group">
+                <label class="setting-label">Seuil emploi</label>
+                <input type="number" name="points_emploi" class="form-input" min="0" value="{{ old('points_emploi', $settings['points_emploi'] ?? 0) }}" required>
+            </div>
+            <div class="setting-group">
+                <label class="setting-label">Seuil concours</label>
+                <input type="number" name="points_concours" class="form-input" min="0" value="{{ old('points_concours', $settings['points_concours'] ?? 0) }}" required>
+            </div>
+            <div class="setting-group">
+                <label class="setting-label">Seuil financement</label>
+                <input type="number" name="points_financement" class="form-input" min="0" value="{{ old('points_financement', $settings['points_financement'] ?? 0) }}" required>
+            </div>
+            <div class="setting-group">
+                <label class="setting-label">Seuil bibliothèque</label>
+                <input type="number" name="points_bibliotheque" class="form-input" min="0" value="{{ old('points_bibliotheque', $settings['points_bibliotheque'] ?? 0) }}" required>
+            </div>
+            <div class="setting-group">
+                <label class="setting-label">Cagnotte des paliers 0 à 10</label>
+                <input type="text" name="quiz_cagnotte_fcfa" class="form-input" value="{{ old('quiz_cagnotte_fcfa', implode(',', $settings['quiz_cagnotte_fcfa'] ?? [0,1000,5000,10000,25000,50000,100000,250000,500000,750000,1000000])) }}" required>
+                <p class="setting-description">11 montants séparés par des virgules. Exemple : 0,1000,5000,...</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Code parrainage par défaut -->
     <div class="setting-card orange">
         <div class="setting-header">

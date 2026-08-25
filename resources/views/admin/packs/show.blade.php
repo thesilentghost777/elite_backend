@@ -582,13 +582,11 @@
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                     </svg>
-                </div>
             </div>
-
             <div class="stat-card green">
                 <div class="stat-content">
-                    <h3>Chapitres</h3>
-                    <p>{{ $pack->modules->sum(fn($m) => $m->chapters->count()) }}</p>
+                    <h3>Leçons (Cours)</h3>
+                    <p>{{ $pack->modules->sum(fn($m) => $m->lessons->count()) }}</p>
                 </div>
                 <div class="stat-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -599,12 +597,12 @@
 
             <div class="stat-card purple">
                 <div class="stat-content">
-                    <h3>Leçons</h3>
-                    <p>{{ $pack->modules->sum(fn($m) => $m->chapters->sum(fn($c) => $c->lessons->count())) }}</p>
+                    <h3>Quiz configurés</h3>
+                    <p>{{ $pack->modules->filter(fn($m) => $m->activeQuiz() !== null)->count() }}</p>
                 </div>
                 <div class="stat-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </div>
             </div>
@@ -643,14 +641,18 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                         </svg>
                         <h2>Modules ({{ $pack->modules->count() }})</h2>
-                        <a href="{{ route('admin.modules.create', $pack) }}" style="margin-left: auto; font-size: 0.875rem; color: var(--primary-blue); text-decoration: none;">
-                            + Ajouter
+                        <a href="{{ route('admin.modules.create', $pack) }}" style="margin-left: auto; font-size: 0.875rem; color: var(--primary-blue); text-decoration: none; font-weight: 600;">
+                            + Nouveau Module
                         </a>
                     </div>
 
                     @if($pack->modules->count() > 0)
                     <div class="modules-list">
                         @foreach($pack->modules as $module)
+                        @php
+                            $activeQuiz = $module->activeQuiz();
+                            $lessons = $module->lessons;
+                        @endphp
                         <div class="module-card">
                             <div class="module-header">
                                 <div class="module-title">
@@ -659,7 +661,13 @@
                                     <div class="module-status {{ $module->active ? '' : 'inactive' }}"></div>
                                 </div>
                                 <div class="module-actions">
-                                    <a href="{{ route('admin.modules.edit', $module) }}" class="btn-icon btn-edit-module">
+                                    <a href="{{ route('admin.modules.show', $module) }}" class="btn-icon" title="Voir le module" style="color: var(--primary-blue);">
+                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        </svg>
+                                    </a>
+                                    <a href="{{ route('admin.modules.edit', $module) }}" class="btn-icon btn-edit-module" title="Modifier">
                                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                         </svg>
@@ -667,7 +675,7 @@
                                     <form action="{{ route('admin.modules.destroy', $module) }}" method="POST" style="display: inline;">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="btn-icon btn-delete-module" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce module ?');">
+                                        <button type="submit" class="btn-icon btn-delete-module" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce module ?');" title="Supprimer">
                                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                                             </svg>
@@ -680,34 +688,69 @@
                                 <p class="module-description">{{ $module->description }}</p>
                                 @endif
 
-                                @if($module->chapters->count() > 0)
+                                <!-- Leçons directes du Module -->
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; margin-bottom: 0.5rem;">
+                                    <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">
+                                        Leçons ({{ $lessons->count() }})
+                                    </h4>
+                                    <a href="{{ route('admin.lessons.create', ['module' => $module->id]) }}" style="font-size: 0.8rem; color: var(--primary-blue); font-weight: 600; text-decoration: none;">
+                                        + Ajouter Leçon
+                                    </a>
+                                </div>
+
+                                @if($lessons->count() > 0)
                                 <div class="chapters-list">
-                                    @foreach($module->chapters as $chapter)
-                                    <div class="chapter-item">
+                                    @foreach($lessons as $lesson)
+                                    <div class="chapter-item" style="padding: 0.6rem 0.85rem;">
                                         <div class="chapter-info">
-                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                            </svg>
-                                            <h4 class="chapter-name">{{ $chapter->nom }}</h4>
+                                            <span style="font-size: 0.75rem; font-weight: 700; color: #64748b; background: #e2e8f0; width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; margin-right: 0.5rem;">
+                                                {{ $lesson->ordre }}
+                                            </span>
+                                            <h4 class="chapter-name" style="font-size: 0.875rem;">{{ $lesson->titre }}</h4>
                                         </div>
-                                        <div class="chapter-stats">
-                                            <span>{{ $chapter->lessons->count() }} leçons</span>
-                                            @if($chapter->quiz)
-                                            <span>• {{ $chapter->quiz->questions->count() }} questions</span>
-                                            @endif
+                                        <div class="chapter-stats" style="display: flex; align-items: center; gap: 0.75rem;">
+                                            <span>{{ $lesson->duree_minutes }} min</span>
+                                            <a href="{{ route('admin.lessons.edit', $lesson) }}" style="color: #64748b; font-size: 0.8rem; text-decoration: none;">
+                                                Modifier
+                                            </a>
                                         </div>
                                     </div>
                                     @endforeach
                                 </div>
                                 @else
-                                <p style="font-size: 0.875rem; color: var(--gray-500); text-align: center; padding: 1rem;">
-                                    Aucun chapitre
+                                <p style="font-size: 0.85rem; color: var(--gray-500); text-align: center; padding: 0.75rem; background: #f8fafc; border-radius: 8px;">
+                                    Aucune leçon enregistrée dans ce module.
                                 </p>
                                 @endif
+
+                                <!-- Quiz de fin de module -->
+                                <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <svg fill="none" stroke="{{ $activeQuiz ? '#10b981' : '#64748b' }}" viewBox="0 0 24 24" style="width: 18px; height: 18px;">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <span style="font-size: 0.85rem; font-weight: 600; color: {{ $activeQuiz ? '#065f46' : '#64748b' }};">
+                                            @if($activeQuiz)
+                                                Quiz de fin ({{ $activeQuiz->questions->count() }}/10 questions)
+                                            @else
+                                                Aucun quiz (Validation automatique à la fin des cours)
+                                            @endif
+                                        </span>
+                                    </div>
+                                    @if($activeQuiz)
+                                        <a href="{{ route('admin.quizzes.show', $activeQuiz) }}" style="font-size: 0.8rem; color: #059669; font-weight: 700; text-decoration: none;">
+                                            Gérer le Quiz &rarr;
+                                        </a>
+                                    @else
+                                        <a href="{{ route('admin.quizzes.create', ['module' => $module->id]) }}" style="font-size: 0.8rem; color: var(--primary-blue); font-weight: 600; text-decoration: none;">
+                                            + Ajouter un Quiz
+                                        </a>
+                                    @endif
+                                </div>
                             </div>
                         </div>
                         @endforeach
-                    </div>
+                    </div>      </div>
                     @else
                     <div class="empty-state">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -740,7 +783,7 @@
                
 
                 <!-- Débouchés -->
-                @if($pack->debouches && count($pack->debouches) > 0)
+                @if(!empty($pack->debouches) && is_array($pack->debouches) && count($pack->debouches) > 0)
                 <div class="info-card">
                     <h3>
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -762,7 +805,7 @@
                 @endif
 
                 <!-- Profils -->
-                @if($pack->profiles->count() > 0)
+                @if($pack->profiles && $pack->profiles->count() > 0)
                 <div class="info-card">
                     <h3>
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">

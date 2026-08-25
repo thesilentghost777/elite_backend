@@ -112,6 +112,14 @@
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
 
+    .error-message {
+        color: #ef4444;
+        font-size: 0.813rem;
+        margin-top: 0.375rem;
+        display: block;
+        font-weight: 500;
+    }
+
     .checkbox-group {
         display: flex;
         flex-direction: column;
@@ -371,9 +379,16 @@
                            class="form-input @error('nom') error @enderror"
                            placeholder="Ex: Secrétariat Bureautique"
                            required>
+                    @error('nom') <div class="error-message">{{ $message }}</div> @enderror
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="form-group">
+                        <label for="prix_fcfa" class="form-label">Prix réel (FCFA)</label>
+                        <input type="number" name="prix_fcfa" id="prix_fcfa" min="0" step="0.01" value="{{ old('prix_fcfa', $pack->prix_fcfa) }}" class="form-input @error('prix_fcfa') error @enderror" placeholder="Ex: 135000">
+                        @error('prix_fcfa') <div class="error-message">{{ $message }}</div> @enderror
+                    </div>
+
                     <div class="form-group">
                         <label for="category_id" class="form-label">
                             Catégorie <span class="required">*</span>
@@ -389,6 +404,7 @@
                             </option>
                             @endforeach
                         </select>
+                        @error('category_id') <div class="error-message">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="form-group">
@@ -406,6 +422,7 @@
                             </option>
                             @endforeach
                         </select>
+                        @error('niveau_requis') <div class="error-message">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="form-group">
@@ -419,6 +436,7 @@
                                min="1"
                                class="form-input @error('prix_points') error @enderror"
                                required>
+                        @error('prix_points') <div class="error-message">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="form-group">
@@ -446,6 +464,7 @@
                               rows="4"
                               class="form-textarea @error('description') error @enderror"
                               placeholder="Décrivez le contenu du pack...">{{ old('description', $pack->description) }}</textarea>
+                    @error('description') <div class="error-message">{{ $message }}</div> @enderror
                 </div>
             </div>
         </div>
@@ -461,6 +480,23 @@
                 Durées et Diplômes
             </h2>
         </div>
+@php
+    $dureesSelected = old('durees_disponibles', $pack->durees_disponibles ?? []);
+    if (is_string($dureesSelected)) {
+        $dureesSelected = json_decode($dureesSelected, true) ?? explode(',', $dureesSelected);
+    }
+    if (!is_array($dureesSelected)) {
+        $dureesSelected = [];
+    }
+
+    $diplomesSelected = old('diplomes_possibles', $pack->diplomes_possibles ?? []);
+    if (is_string($diplomesSelected)) {
+        $diplomesSelected = json_decode($diplomesSelected, true) ?? explode(',', $diplomesSelected);
+    }
+    if (!is_array($diplomesSelected)) {
+        $diplomesSelected = [];
+    }
+@endphp
         <div class="form-body">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
                 <div class="form-group">
@@ -474,16 +510,17 @@
                                    name="durees_disponibles[]" 
                                    value="{{ $duree }}"
                                    id="duree_{{ $loop->index }}"
-                                   {{ in_array($duree, old('durees_disponibles', $pack->durees_disponibles ?? [])) ? 'checked' : '' }}>
+                                   {{ in_array($duree, $dureesSelected) ? 'checked' : '' }}>
                             <label for="duree_{{ $loop->index }}">{{ $duree }}</label>
                         </div>
                         @endforeach
                     </div>
+                    @error('durees_disponibles') <div class="error-message">{{ $message }}</div> @enderror
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">
-                        Diplômes Possibles <span class="required">*</span>
+                        Diplômes Possibles (Optionnel)
                     </label>
                     <div class="checkbox-group">
                         @foreach(['AQP', 'CQP', 'DQP', 'BTS', 'Licence Professionnelle'] as $diplome)
@@ -492,11 +529,12 @@
                                    name="diplomes_possibles[]" 
                                    value="{{ $diplome }}"
                                    id="diplome_{{ $loop->index }}"
-                                   {{ in_array($diplome, old('diplomes_possibles', $pack->diplomes_possibles ?? [])) ? 'checked' : '' }}>
+                                   {{ in_array($diplome, $diplomesSelected) ? 'checked' : '' }}>
                             <label for="diplome_{{ $loop->index }}">{{ $diplome }}</label>
                         </div>
                         @endforeach
                     </div>
+                    @error('diplomes_possibles') <div class="error-message">{{ $message }}</div> @enderror
                 </div>
             </div>
         </div>
@@ -520,9 +558,21 @@
                         @php
                             $oldDebouches = old('debouches');
                             $currentDebouches = $pack->debouches ?? [];
+                            if (is_string($currentDebouches)) {
+                                $currentDebouches = json_decode($currentDebouches, true) ?? explode(',', $currentDebouches);
+                            }
+                            if (!is_array($currentDebouches)) {
+                                $currentDebouches = [];
+                            }
+                            if (is_string($oldDebouches)) {
+                                $oldDebouches = json_decode($oldDebouches, true) ?? explode(',', $oldDebouches);
+                            }
+                            if (!is_array($oldDebouches) && $oldDebouches !== null) {
+                                $oldDebouches = (array) $oldDebouches;
+                            }
                         @endphp
                         
-                        @if($oldDebouches)
+                        @if(is_array($oldDebouches) && count($oldDebouches) > 0)
                             @foreach($oldDebouches as $index => $debouche)
                             <div class="debouche-item">
                                 <input type="text" 
@@ -539,7 +589,7 @@
                                 </button>
                             </div>
                             @endforeach
-                        @elseif(count($currentDebouches) > 0)
+                        @elseif(is_array($currentDebouches) && count($currentDebouches) > 0)
                             @foreach($currentDebouches as $debouche)
                             <div class="debouche-item">
                                 <input type="text" 
@@ -586,13 +636,22 @@
             <div class="form-group">
                 <label class="form-label">Profils de Carrière Associés</label>
                 <div class="profiles-grid">
+                    @php
+                        $profilesSelected = old('profiles');
+                        if ($profilesSelected === null) {
+                            $profilesSelected = $pack->relationLoaded('profiles') || $pack->profiles 
+                                ? $pack->profiles->pluck('id')->toArray() 
+                                : [];
+                        }
+                        $profilesSelected = (array) $profilesSelected;
+                    @endphp
                     @foreach($profiles as $profile)
                     <div class="checkbox-item">
                         <input type="checkbox" 
                                name="profiles[]" 
                                value="{{ $profile->id }}"
                                id="profile_{{ $profile->id }}"
-                               {{ in_array($profile->id, old('profiles', $pack->profiles->pluck('id')->toArray())) ? 'checked' : '' }}>
+                               {{ in_array($profile->id, $profilesSelected) ? 'checked' : '' }}>
                         <label for="profile_{{ $profile->id }}">{{ $profile->nom }}</label>
                     </div>
                     @endforeach

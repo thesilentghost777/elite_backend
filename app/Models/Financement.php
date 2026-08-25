@@ -14,6 +14,7 @@ class Financement extends Model
         'montant_min', 'montant_max', 'date_limite',
         'conditions_eligibilite', 'lien_externe',
         'contact_telephone', 'contact_email', 'active',
+        'points_requis',
     ];
 
     protected $casts = [
@@ -21,6 +22,7 @@ class Financement extends Model
         'montant_max' => 'decimal:2',
         'date_limite' => 'date',
         'active' => 'boolean',
+        'points_requis' => 'integer',
     ];
 
     public function scopeActive($query)

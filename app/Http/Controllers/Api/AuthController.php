@@ -24,7 +24,7 @@ class AuthController extends Controller
             'dernier_diplome'  => 'required|in:primaire,secondaire,universitaire',
             'ville'            => 'required|string|max:255',
             'password'         => 'required|string|min:6|confirmed',
-            'referral_code'    => 'nullable|string',
+            'referral_code'    => 'required|string|max:50',
         ]);
 
         $result = $this->authService->register($data);
@@ -74,7 +74,7 @@ class AuthController extends Controller
             'prenom'          => 'required|string|max:255',
             'dernier_diplome' => 'required|in:primaire,secondaire,universitaire',
             'ville'           => 'required|string|max:255',
-            'referral_code'   => 'nullable|string',
+            'referral_code'   => 'required|string|max:50',
             'telephone'       => 'nullable|string|unique:elite_users,telephone,' . $request->user()->id,
             'password'        => 'nullable|string|min:6|confirmed',
         ]);
@@ -105,7 +105,8 @@ class AuthController extends Controller
     // ── Profil ────────────────────────────────────────────────
     public function profile(Request $request): JsonResponse
     {
-        $user         = $request->user();
+        $user = $request->user();
+        $user->load('partner');
         $careerProfile = null;
         if ($user->profile_chosen) {
             $profileChoice = $user->profileChoice()->with('profile')->first();
@@ -136,7 +137,9 @@ class AuthController extends Controller
         ]);
 
         $user = $this->authService->updateProfile($request->user(), $data);
-        return response()->json(['success' => true, 'data' => ['user' => $user->fresh()]]);
+        $freshUser = $user->fresh();
+        $freshUser->load('partner');
+        return response()->json(['success' => true, 'data' => ['user' => $freshUser]]);
     }
 
     public function logout(Request $request): JsonResponse
@@ -153,12 +156,11 @@ class AuthController extends Controller
     }
 
     // ── Suppression de compte ─────────────────────────────────
-public function deleteAccount(Request $request): JsonResponse
-{
-    $user = $request->user();
-    $user->password = Hash::make('supprimer');
-    $user->save();
-    $this->authService->logout($user);
-    return response()->json(['success' => true, 'message' => 'Compte supprimé avec succès']);
-}
+    public function deleteAccount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $this->authService->logout($user);
+        $user->delete();
+        return response()->json(['success' => true, 'message' => 'Compte supprimé avec succès']);
+    }
 }

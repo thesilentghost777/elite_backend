@@ -411,10 +411,10 @@
                 <thead>
                     <tr>
                         <th>Code</th>
-                        <th>Montant</th>
-                        <th>Points</th>
+                        <th>Montant / Points</th>
+                        <th>Tranches / Cours Inclus</th>
                         <th>Destinataire</th>
-                        <th>Créé par</th>
+                        <th>Partenaire</th>
                         <th>Statut</th>
                         <th>Expiration</th>
                         <th>Actions</th>
@@ -427,10 +427,26 @@
                                 <span class="code-display">{{ $code->code }}</span>
                             </td>
                             <td>
-                                <span class="amount-display">{{ number_format($code->montant_fcfa) }} FCFA</span>
+                                <div><span class="amount-display">{{ number_format($code->montant_fcfa) }} FCFA</span></div>
+                                <div><span class="points-display">{{ $code->points }} pts</span></div>
                             </td>
                             <td>
-                                <span class="points-display">{{ $code->points }} pts</span>
+                                @if(!empty($code->tranches))
+                                    <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.25rem;">
+                                        @foreach($code->tranches as $trancheNum)
+                                            <span style="font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 600;">
+                                                T{{ $trancheNum }}
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                @endif
+                                @if($code->pack)
+                                    <div style="font-size: 0.813rem; color: #047857; font-weight: 500;">
+                                        📚 {{ $code->pack->nom }}
+                                    </div>
+                                @elseif(empty($code->tranches))
+                                    <span style="font-size: 0.75rem; color: var(--gray-500);">Recharge libre</span>
+                                @endif
                             </td>
                             <td>
                                 @if($code->user)
@@ -442,9 +458,11 @@
                                 @endif
                             </td>
                             <td>
-                                <span class="creator-info">
-                                    {{ $code->createdBy->name ?? 'Admin' }}
-                                </span>
+                                @if($code->partner)
+                                    <span style="font-weight: 500; color: var(--gray-800);">{{ $code->partner->nom }}</span>
+                                @else
+                                    <span class="creator-info">{{ $code->createdBy->name ?? 'Admin Général' }}</span>
+                                @endif
                             </td>
                             <td>
                                 @if($code->used_at)
@@ -454,11 +472,14 @@
                                         </svg>
                                         Utilisé
                                     </span>
-                                    @if($code->used_at)
+                                    @if($code->usedByUser)
                                     <div style="font-size: 0.75rem; color: var(--gray-600); margin-top: 0.25rem;">
-                                        {{ $code->used_at->format('d/m/Y H:i') }}
+                                        par {{ $code->usedByUser->prenom }} {{ $code->usedByUser->nom }}
                                     </div>
                                     @endif
+                                    <div style="font-size: 0.75rem; color: var(--gray-500);">
+                                        {{ $code->used_at->format('d/m/Y H:i') }}
+                                    </div>
                                 @elseif($code->expires_at && $code->expires_at->isPast())
                                     <span class="badge badge-expired">
                                         <svg fill="currentColor" viewBox="0 0 20 20">
@@ -471,7 +492,7 @@
                                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 14px; height: 14px;">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                         </svg>
-                                        En attente
+                                        Actif / En attente
                                     </span>
                                 @endif
                             </td>
@@ -490,7 +511,7 @@
                                         <form action="{{ route('admin.cash-codes.destroy', $code) }}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce code ?');">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn-icon btn-delete">
+                                            <button type="submit" class="btn-icon btn-delete" title="Supprimer le code">
                                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                                                 </svg>

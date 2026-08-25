@@ -74,93 +74,183 @@ class PaymentService
     // Ajouter cette méthode privée
 private function getDepositPoints(float $montantFcfa): int
 {
-    $bareme = [
-        1000  => 3,
-        2000  => 7,
-        3000  => 10,
-        5000  => 17,
-        10000 => 35,
-        20000 => 72,
-        30000 => 110,
-        50000 => 185,
-        75000 => 280,
-        100000 => 375,
-    ];
+        $fcfaParPoint = max(1, SystemSetting::getTauxConversionFcfaPoints());
 
-    return $bareme[(int) $montantFcfa] ?? (int) ($montantFcfa / 650);
+        return (int) floor($montantFcfa / $fcfaParPoint);
 }
 
     /**
      * Utiliser un code caisse
      */
     public function useCashCode(EliteUser $user, string $code): array
-{
-    $cashCode = CashCode::where('code', $code)->first();
+    {
+        $cashCode = CashCode::where('code', $code)->first();
 
-    if (!$cashCode) {
-        throw ValidationException::withMessages([
-            'code' => ['Code caisse invalide.']
-        ]);
-    }
-
-    if (!$cashCode->canBeUsedBy($user)) {
-        if ($cashCode->used_at) {
+        if (!$cashCode) {
             throw ValidationException::withMessages([
-                'code' => ['Ce code a déjà été utilisé.']
+                'code' => ['Code caisse invalide.']
             ]);
         }
-        if ($cashCode->assigned_to && $cashCode->assigned_to !== $user->id) {
+
+        if (!$cashCode->canBeUsedBy($user)) {
+            if ($cashCode->used_at) {
+                throw ValidationException::withMessages([
+                    'code' => ['Ce code a déjà été utilisé.']
+                ]);
+            }
+            if ($cashCode->assigned_to && $cashCode->assigned_to !== $user->id) {
+                throw ValidationException::withMessages([
+                    'code' => ['Ce code est assigné à un autre utilisateur.']
+                ]);
+            }
+            if ($cashCode->expires_at && $cashCode->expires_at->isPast()) {
+                throw ValidationException::withMessages([
+                    'code' => ['Ce code a expiré.']
+                ]);
+            }
             throw ValidationException::withMessages([
-                'code' => ['Ce code est assigné à un autre utilisateur.']
+                'code' => ['Ce code n\'est pas valide.']
             ]);
         }
-        if ($cashCode->expires_at && $cashCode->expires_at->isPast()) {
-            throw ValidationException::withMessages([
-                'code' => ['Ce code a expiré.']
+
+        return DB::transaction(function () use ($user, $cashCode) {
+            $cashCode = CashCode::whereKey($cashCode->id)->lockForUpdate()->first();
+            if (!$cashCode || !$cashCode->canBeUsedBy($user)) {
+                throw ValidationException::withMessages(['code' => ['Ce code caisse n’est plus disponible.']]);
+            }
+
+            $partnerPaymentService = app(PartnerPaymentService::class);
+            $userInstallments = $partnerPaymentService->getOrCreateUserInstallments($user);
+
+            $paidTranchesLabels = [];
+            $unlockedPackName = null;
+
+            // 1. Débloquer les tranches spécifiées dans le code caisse
+            $tranches = $cashCode->tranches ?? [];
+            if (!empty($tranches)) {
+                foreach ($userInstallments as $inst) {
+                    $instOrdre = $inst->planInstallment?->ordre;
+                    if ($instOrdre && in_array($instOrdre, $tranches)) {
+                        $inst->update([
+                            'statut' => 'paye',
+                            'paid_at' => now(),
+                        ]);
+                        $paidTranchesLabels[] = $inst->planInstallment?->libelle ?? "Tranche {$instOrdre}";
+
+                        // Si tranche 3 (Matière d'œuvre), s'assurer que le pack de formation est activé
+                        if ($instOrdre === 3) {
+                            $targetPackId = $cashCode->pack_id ?? $inst->userPack?->pack_id ?? Pack::active()->first()?->id;
+                            if ($targetPackId) {
+                                $this->unlockPackForUser($user, $targetPackId);
+                                $pack = Pack::find($targetPackId);
+                                $unlockedPackName = $pack?->nom;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Débloquer le cours / pack si spécifié dans le code caisse
+            if ($cashCode->pack_id) {
+                $this->unlockPackForUser($user, $cashCode->pack_id);
+                $pack = Pack::find($cashCode->pack_id);
+                $unlockedPackName = $pack?->nom ?? $unlockedPackName;
+
+                // Marquer également la tranche 3 comme payée
+                $partnerPaymentService->markTranche3PaidOnPackPurchase($user, $cashCode->pack_id);
+            }
+
+            // 3. Marquer le code caisse comme utilisé
+            $cashCode->update([
+                'used_by' => $user->id,
+                'used_at' => now(),
+                'active' => false,
             ]);
-        }
-        throw ValidationException::withMessages([
-            'code' => ['Ce code n\'est pas valide.']
-        ]);
-    }
 
-    return DB::transaction(function () use ($user, $cashCode) {
-        $cashCode->update([
-            'used_by' => $user->id,
-            'used_at' => now(),
-            'active' => false,
-        ]);
+            // 4. Créditer les points s'il y en a
+            $points = (int) $cashCode->points;
+            if ($points > 0) {
+                $user->addPoints($points);
+                $user->save();
+            }
 
-        // CORRECTION: Utiliser montant_fcfa au lieu de points
-        // Puisque solde_points stocke directement des FCFA
-        $user->solde_points += $cashCode->montant_fcfa;
-        $user->save();
+            // 5. Enregistrer la transaction
+            $descParts = ["Code caisse: {$cashCode->code}"];
+            if (!empty($paidTranchesLabels)) {
+                $descParts[] = "Tranches: " . implode(', ', $paidTranchesLabels);
+            }
+            if ($unlockedPackName) {
+                $descParts[] = "Pack: {$unlockedPackName}";
+            }
 
-        $transaction = Transaction::create([
-            'user_id' => $user->id,
-            'type' => 'code_caisse',
-            'montant_fcfa' => $cashCode->montant_fcfa,
-            'points' => $cashCode->montant_fcfa, // Stocker le montant FCFA dans 'points' aussi pour cohérence
-            'reference' => Transaction::generateReference(),
-            'description' => "Code caisse: {$cashCode->code}",
-            'metadata' => [
-                'cash_code_id' => $cashCode->id,
-                'code' => $cashCode->code,
-            ],
-            'statut' => 'complete',
-        ]);
-
-        return [
-            'success' => true,
-            'transaction' => [
-                'reference' => $transaction->reference,
+            $transaction = Transaction::create([
+                'user_id' => $user->id,
+                'type' => 'code_caisse',
                 'montant_fcfa' => $cashCode->montant_fcfa,
-                'points_credites' => $cashCode->montant_fcfa,
-            ],
-            'nouveau_solde' => $user->solde_points,
-        ];
-    });
-}
+                'points' => $points,
+                'reference' => Transaction::generateReference(),
+                'description' => implode(' | ', $descParts),
+                'metadata' => [
+                    'cash_code_id' => $cashCode->id,
+                    'code' => $cashCode->code,
+                    'tranches' => $tranches,
+                    'pack_id' => $cashCode->pack_id,
+                    'pack_nom' => $unlockedPackName,
+                    'tranches_payees' => $paidTranchesLabels,
+                ],
+                'statut' => 'complete',
+            ]);
+
+            $customMsg = "Code caisse validé avec succès !";
+            if (!empty($paidTranchesLabels)) {
+                $customMsg .= "\nTranches réglées : " . implode(', ', $paidTranchesLabels);
+            }
+            if ($unlockedPackName) {
+                $customMsg .= "\nPack débloqué : " . $unlockedPackName;
+            }
+            if ($points > 0) {
+                $customMsg .= "\nPoints crédités : +" . $points . " pts";
+            }
+
+            return [
+                'success' => true,
+                'message' => $customMsg,
+                'transaction' => [
+                    'reference' => $transaction->reference,
+                    'montant_fcfa' => $cashCode->montant_fcfa,
+                    'points_credites' => $points,
+                ],
+                'points_credites' => $points,
+                'tranches_payees' => $paidTranchesLabels,
+                'pack_debloque' => $unlockedPackName,
+                'nouveau_solde' => $user->fresh()->solde_points,
+            ];
+        });
+    }
+
+    public function unlockPackForUser(EliteUser $user, int $packId): UserPack
+    {
+        $userPack = UserPack::firstOrCreate(
+            ['user_id' => $user->id, 'pack_id' => $packId],
+            [
+                'duree_choisie' => 'illimité',
+                'prix_paye' => 135000,
+                'statut' => 'actif',
+                'date_achat' => now(),
+            ]
+        );
+        $userPack->update(['statut' => 'actif']);
+
+        $firstModule = Module::where('pack_id', $packId)->where('active', true)->orderBy('ordre')->orderBy('id')->first();
+        if ($firstModule) {
+            \App\Models\ModuleUnlock::firstOrCreate(
+                ['user_id' => $user->id, 'module_id' => $firstModule->id],
+                ['unlock_method' => 'score']
+            );
+        }
+
+        return $userPack;
+    }
 
     /**
      * Rechercher un utilisateur pour transfert
@@ -329,24 +419,17 @@ private function getDepositPoints(float $montantFcfa): int
                 ->first();
 
             if ($firstModule) {
-                $firstChapter = Chapter::where('module_id', $firstModule->id)
-                    ->where('active', true)
-                    ->orderBy('ordre')
-                    ->first();
-
-                if ($firstChapter) {
-                    ChapterUnlock::firstOrCreate([
-                        'user_id' => $user->id,
-                        'chapter_id' => $firstChapter->id,
-                    ],
-                    [
-                        'unlock_method' => 'score',  // Or 'score' depending on your business logic
-                        'unlocked_at' => now(),
-                    ]);
-                }
+                \App\Models\ModuleUnlock::firstOrCreate([
+                    'user_id' => $user->id,
+                    'module_id' => $firstModule->id,
+                ],
+                [
+                    'unlock_method' => 'score',
+                    'created_at' => now(),
+                ]);
             }
 
-            $transaction = Transaction::create([
+                $transaction = Transaction::create([
                 'user_id' => $user->id,
                 'type' => 'achat_pack',
                 'points' => -$pack->prix_points,
@@ -358,6 +441,8 @@ private function getDepositPoints(float $montantFcfa): int
                 ],
                 'statut' => 'complete',
             ]);
+
+            app(PartnerPaymentService::class)->markTranche3PaidOnPackPurchase($user, $pack->id);
 
             return [
                 'success' => true,

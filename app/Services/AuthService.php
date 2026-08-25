@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Mail\OtpMail;
 use App\Models\EliteUser;
+use App\Models\Partner;
 use App\Models\ReferralHistory;
 use App\Models\SystemSetting;
 use App\Models\Transaction;
@@ -26,9 +27,9 @@ class AuthService
         return DB::transaction(function () use ($data) {
             $isByEmail = !empty($data['email']) && empty($data['telephone']);
 
-            // Vérification du code de parrainage
-            $referralCode = $data['referral_code'] ?? SystemSetting::getDefaultReferralCode();
-            $parrain = $this->resolveParrain($referralCode);
+            // Vérification et résolution obligatoire du code
+            $referralCode = $data['referral_code'] ?? '';
+            $resolved = $this->resolveReferral($referralCode);
 
             // Création de l'utilisateur
             $user = EliteUser::create([
@@ -40,13 +41,14 @@ class AuthService
                 'ville'            => $data['ville'],
                 'password'         => Hash::make($data['password']),
                 'referral_code'    => EliteUser::generateReferralCode(),
-                'referred_by'      => $referralCode,
+                'partner_id'       => $resolved['partner']?->id,
+                'referred_by'      => $resolved['code'],
                 'provider'         => $isByEmail ? 'email' : 'phone',
                 'email_verified'   => false,
             ]);
 
-            if ($parrain) {
-                $this->creditReferralPoints($parrain, $user);
+            if ($resolved['type'] === 'user' && $resolved['parrain']) {
+                $this->creditReferralPoints($resolved['parrain'], $user);
             }
 
             // Par email → envoyer OTP, pas de token encore
@@ -61,6 +63,7 @@ class AuthService
 
             // Par téléphone → token direct
             $token = $user->createToken('elite-mobile')->plainTextToken;
+            $user->load('partner');
             return [
                 'needs_otp'             => false,
                 'user'                  => $user,
@@ -181,21 +184,20 @@ class AuthService
 
     public function completeSocialProfile(EliteUser $user, array $data): array
     {
-        $referralCode = $data['referral_code'] ?? SystemSetting::getDefaultReferralCode();
-        $parrain = null;
-
-        // Parrainage uniquement si pas encore appliqué
-        if (empty($user->referred_by) || $user->referred_by === SystemSetting::getDefaultReferralCode()) {
-            $parrain = $this->resolveParrain($referralCode);
-        }
+        $referralCode = $data['referral_code'] ?? '';
+        $resolved = $this->resolveReferral($referralCode);
 
         $updateData = [
             'nom'             => $data['nom'],
             'prenom'          => $data['prenom'],
             'dernier_diplome' => $data['dernier_diplome'],
             'ville'           => $data['ville'],
-            'referred_by'     => $referralCode,
+            'referred_by'     => $resolved['code'],
         ];
+
+        if ($resolved['partner']) {
+            $updateData['partner_id'] = $resolved['partner']->id;
+        }
 
         if (!empty($data['telephone']) && empty($user->telephone)) {
             $updateData['telephone'] = $data['telephone'];
@@ -206,12 +208,15 @@ class AuthService
 
         $user->update($updateData);
 
-        if ($parrain) {
-            $this->creditReferralPoints($parrain, $user);
+        if ($resolved['type'] === 'user' && $resolved['parrain']) {
+            $this->creditReferralPoints($resolved['parrain'], $user);
         }
 
+        $freshUser = $user->fresh();
+        $freshUser->load('partner');
+
         return [
-            'user'                    => $user->fresh(),
+            'user'                    => $freshUser,
             'requires_correspondence' => !$user->correspondence_completed,
             'requires_profile_choice' => $user->correspondence_completed && !$user->profile_chosen,
         ];
@@ -281,20 +286,82 @@ class AuthService
         $user->currentAccessToken()->delete();
     }
 
-    public function checkReferralCode(string $code): array
+    public function findReferralEntity(string $code): ?array
     {
-        if ($code === SystemSetting::getDefaultReferralCode()) {
-            return ['valid' => true, 'is_default' => true, 'parrain' => null];
+        $clean = trim(strtoupper($code));
+        if (empty($clean)) {
+            return null;
         }
 
-        $parrain = EliteUser::where('referral_code', $code)
-            ->select('id', 'nom', 'prenom', 'ville')
-            ->first();
+        $stripped = preg_replace('/[^A-Z0-9]/', '', $clean);
+
+        // 1. Partenaire (par code_partenaire ou nom)
+        $partner = Partner::where('active', true)
+            ->where(function ($query) use ($clean, $stripped) {
+                $query->whereRaw('UPPER(TRIM(code_partenaire)) = ?', [$clean])
+                      ->orWhereRaw('UPPER(TRIM(nom)) = ?', [$clean])
+                      ->orWhere('nom', 'LIKE', "%{$clean}%");
+                if (!empty($stripped)) {
+                    $query->orWhereRaw("REPLACE(REPLACE(UPPER(code_partenaire), '-', ''), ' ', '') = ?", [$stripped]);
+                }
+            })->first();
+
+        if ($partner) {
+            return [
+                'type'       => 'partner',
+                'partner'    => $partner,
+                'partner_id' => $partner->id,
+                'nom'        => $partner->nom,
+                'parrain'    => null,
+                'code'       => $partner->code_partenaire ?: $clean,
+                'label'      => "Centre Partenaire : {$partner->nom}",
+            ];
+        }
+
+        // 2. Parrain utilisateur
+        $parrain = EliteUser::where(function ($query) use ($clean, $stripped) {
+            $query->whereRaw('UPPER(TRIM(referral_code)) = ?', [$clean]);
+            if (!empty($stripped)) {
+                $query->orWhereRaw("REPLACE(REPLACE(UPPER(referral_code), '-', ''), ' ', '') = ?", [$stripped]);
+            }
+        })->first();
+
+        if ($parrain) {
+            return [
+                'type'       => 'user',
+                'partner'    => null,
+                'parrain'    => $parrain,
+                'code'       => $parrain->referral_code,
+                'label'      => "Parrain : {$parrain->prenom} {$parrain->nom}" . ($parrain->ville ? " ({$parrain->ville})" : ""),
+            ];
+        }
+
+        // 3. Code système officiel (ELITE2026, ELITE2024, etc.)
+        $defaultCode = strtoupper(trim(SystemSetting::getDefaultReferralCode()));
+        $validSystemCodes = array_filter(array_unique([$defaultCode, 'ELITE2026', 'ELITE2024', 'ELITE']));
+        if (in_array($clean, $validSystemCodes, true) || (!empty($stripped) && in_array($stripped, $validSystemCodes, true))) {
+            return [
+                'type'    => 'default',
+                'partner' => null,
+                'parrain' => null,
+                'code'    => $defaultCode ?: 'ELITE2026',
+                'label'   => 'Code Officiel Elite',
+            ];
+        }
+
+        return null;
+    }
+
+    public function checkReferralCode(string $code): array
+    {
+        $entity = $this->findReferralEntity($code);
+        if ($entity) {
+            return array_merge(['valid' => true], $entity);
+        }
 
         return [
-            'valid'      => $parrain !== null,
-            'is_default' => false,
-            'parrain'    => $parrain ? ['nom' => $parrain->nom, 'prenom' => $parrain->prenom, 'ville' => $parrain->ville] : null,
+            'valid'   => false,
+            'message' => 'Code de parrainage ou de centre partenaire invalide.',
         ];
     }
 
@@ -315,16 +382,23 @@ class AuthService
     // HELPERS PRIVÉS
     // ──────────────────────────────────────────
 
-    private function resolveParrain(string $referralCode): ?EliteUser
+    public function resolveReferral(string $referralCode): array
     {
-        if ($referralCode === SystemSetting::getDefaultReferralCode()) {
-            return null;
+        $code = trim($referralCode);
+        if (empty($code)) {
+            throw ValidationException::withMessages([
+                'referral_code' => ['Le code de parrainage ou de centre partenaire est obligatoire.'],
+            ]);
         }
-        $parrain = EliteUser::where('referral_code', $referralCode)->first();
-        if (!$parrain) {
-            throw ValidationException::withMessages(['referral_code' => ['Code de parrainage invalide.']]);
+
+        $entity = $this->findReferralEntity($code);
+        if ($entity) {
+            return $entity;
         }
-        return $parrain;
+
+        throw ValidationException::withMessages([
+            'referral_code' => ['Le code de parrainage ou de centre partenaire est invalide.'],
+        ]);
     }
 
     private function creditReferralPoints(EliteUser $parrain, EliteUser $filleul): void
@@ -351,6 +425,7 @@ class AuthService
 
     private function buildLoginResponse(EliteUser $user, string $token): array
     {
+        $user->load('partner');
         return [
             'user'                    => $user,
             'token'                   => $token,

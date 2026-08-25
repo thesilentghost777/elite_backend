@@ -14,9 +14,12 @@ class EliteUser extends Authenticatable
 
     protected $table = 'elite_users';
 
+    protected $appends = ['ecole_partenaire'];
+
    
       protected $fillable = [
         'nom', 'prenom', 'telephone', 'email', 'dernier_diplome', 'ville',
+        'partner_id', 'formation_deadline', 'formation_status',
         'password', 'referral_code', 'referred_by', 'solde_points',
         'correspondence_completed', 'profile_chosen', 'parcours_mode', 'photo_url',
         'firebase_uid', 'provider', 'email_verified', 'otp_code', 'otp_expires_at',
@@ -36,6 +39,8 @@ class EliteUser extends Authenticatable
         'trial_started_at'         => 'datetime',
         'trial_expires_at'         => 'datetime',
         'activated_at'             => 'datetime',
+        'formation_deadline'       => 'datetime',
+        'formation_status'         => 'string',
     ];
 
   
@@ -83,6 +88,11 @@ class EliteUser extends Authenticatable
         return $this->hasMany(UserPack::class, 'user_id');
     }
 
+    public function partner()
+    {
+        return $this->belongsTo(Partner::class);
+    }
+
     public function parrain()
     {
         return $this->belongsTo(EliteUser::class, 'referred_by', 'referral_code');
@@ -128,6 +138,11 @@ class EliteUser extends Authenticatable
         return $this->hasMany(QuizResult::class, 'user_id');
     }
 
+    public function moduleUnlocks()
+    {
+        return $this->hasMany(ModuleUnlock::class, 'user_id');
+    }
+
     public function chapterUnlocks()
     {
         return $this->hasMany(ChapterUnlock::class, 'user_id');
@@ -149,6 +164,36 @@ class EliteUser extends Authenticatable
     }
 
     // ============ HELPERS ============
+
+    public function getEcolePartenaireAttribute(): ?string
+    {
+        if ($this->relationLoaded('partner') && $this->partner) {
+            return $this->partner->nom;
+        }
+
+        if ($this->partner_id) {
+            return $this->partner?->nom;
+        }
+
+        if ($this->referred_by) {
+            $clean = trim(strtoupper($this->referred_by));
+            $stripped = preg_replace('/[^A-Z0-9]/', '', $clean);
+            $partner = Partner::where('active', true)
+                ->where(function ($query) use ($clean, $stripped) {
+                    $query->whereRaw('UPPER(TRIM(code_partenaire)) = ?', [$clean])
+                          ->orWhereRaw('UPPER(TRIM(nom)) = ?', [$clean]);
+                    if (!empty($stripped)) {
+                        $query->orWhereRaw("REPLACE(REPLACE(UPPER(code_partenaire), '-', ''), ' ', '') = ?", [$stripped]);
+                    }
+                })->first();
+
+            if ($partner) {
+                return $partner->nom;
+            }
+        }
+
+        return null;
+    }
 
     public function getFullNameAttribute(): string
     {

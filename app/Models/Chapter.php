@@ -48,6 +48,11 @@ class Chapter extends Model
         return $this->hasMany(Quiz::class);
     }
 
+    public function quiz()
+    {
+        return $this->hasOne(Quiz::class)->latestOfMany();
+    }
+
     public function unlocks(): HasMany
     {
         return $this->hasMany(ChapterUnlock::class);
@@ -66,26 +71,42 @@ class Chapter extends Model
      */
     public function isUnlockedFor(EliteUser $user): bool
     {
-        // Vérifier si l'utilisateur a le pack
+        // Vérifier si l'utilisateur a le pack (achat direct ou via partenaire)
+        $packId = $this->module->pack_id ?? null;
+        if (!$packId && $this->module_id) {
+            $module = Module::find($this->module_id);
+            $packId = $module?->pack_id;
+        }
+
+        if (!$packId) {
+            return false;
+        }
+
         $hasPack = UserPack::where('user_id', $user->id)
-            ->where('pack_id', $this->module->pack_id)
+            ->where('pack_id', $packId)
             ->where('statut', '!=', 'expire')
             ->exists();
 
         if (!$hasPack) {
-            return false;
+            if ($user->partner_id) {
+                $hasPack = true;
+            } else {
+                return false;
+            }
         }
 
         // Le premier chapitre du premier module est toujours déverrouillé
-        $firstModule = Module::where('pack_id', $this->module->pack_id)
+        $firstModule = Module::where('pack_id', $packId)
             ->active()
             ->orderBy('ordre')
+            ->orderBy('id')
             ->first();
 
         if ($firstModule && $firstModule->id === $this->module_id) {
             $firstChapter = Chapter::where('module_id', $this->module_id)
                 ->active()
                 ->orderBy('ordre')
+                ->orderBy('id')
                 ->first();
 
             if ($firstChapter && $firstChapter->id === $this->id) {

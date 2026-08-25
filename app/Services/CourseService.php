@@ -3,16 +3,17 @@
 namespace App\Services;
 
 use App\Models\Category;
-use App\Models\Chapter;
-use App\Models\ChapterUnlock;
+use App\Models\CourseSchedule;
 use App\Models\EliteUser;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
 use App\Models\Module;
+use App\Models\ModuleUnlock;
 use App\Models\Pack;
 use App\Models\Quiz;
 use App\Models\QuizResult;
 use App\Models\UserPack;
+use App\Models\PartnerPaymentPlan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -42,6 +43,7 @@ class CourseService
                         'nom' => $pack->nom,
                         'slug' => $pack->slug,
                         'prix_points' => $pack->prix_points,
+                        'prix_fcfa' => $pack->prix_fcfa_effectif,
                         'niveau_requis' => $pack->niveau_requis,
                     ];
                 }),
@@ -78,6 +80,7 @@ class CourseService
                 'durees_disponibles' => $pack->durees_disponibles,
                 'diplomes_possibles' => $pack->diplomes_possibles,
                 'prix_points' => $pack->prix_points,
+                'prix_fcfa' => $pack->prix_fcfa_effectif,
                 'debouches' => $pack->debouches,
             ];
         })->toArray();
@@ -132,7 +135,10 @@ class CourseService
             'category',
             'modules' => function ($query) {
                 $query->active()->orderBy('ordre')->with([
-                    'chapters' => function ($q) {
+                    'lessons' => function ($q) {
+                        $q->active()->orderBy('ordre');
+                    },
+                    'quizzes' => function ($q) {
                         $q->active()->orderBy('ordre');
                     }
                 ]);
@@ -153,16 +159,18 @@ class CourseService
             'durees_disponibles' => $pack->durees_disponibles,
             'diplomes_possibles' => $pack->diplomes_possibles,
             'prix_points' => $pack->prix_points,
+            'prix_fcfa' => $pack->prix_fcfa_effectif,
             'debouches' => $pack->debouches,
             'total_modules' => $pack->modules->count(),
-            'total_chapters' => $pack->modules->sum(fn($m) => $m->chapters->count()),
+            'total_lessons' => $pack->modules->sum(fn($m) => $m->lessons->count()),
             'modules' => $pack->modules->map(function ($module) {
                 return [
                     'id' => $module->id,
                     'nom' => $module->nom,
                     'description' => $module->description,
                     'type' => $module->type,
-                    'chapters_count' => $module->chapters->count(),
+                    'lessons_count' => $module->lessons->count(),
+                    'has_quiz' => $module->quizzes->isNotEmpty(),
                 ];
             }),
         ];
@@ -174,225 +182,252 @@ class CourseService
 
         $pack = Pack::with([
             'modules' => function ($query) {
-                $query->active()->orderBy('ordre')->with([
-                    'chapters' => function ($q) {
-                        $q->active()->orderBy('ordre')->withCount('lessons');
+                $query->active()->orderBy('ordre')->orderBy('id')->with([
+                    'lessons' => function ($q) {
+                        $q->active()->orderBy('ordre')->orderBy('id');
+                    },
+                    'quizzes' => function ($q) {
+                        $q->active()->orderBy('ordre');
                     }
                 ]);
             }
         ])->findOrFail($packId);
 
-        return $pack->modules->map(function ($module, $moduleIndex) use ($user, $hasPack, $pack) {
+        $modules = $pack->modules;
+        $modulesData = [];
+
+        foreach ($modules as $moduleIndex => $module) {
             $isFirstModule = $moduleIndex === 0;
-            $isModuleUnlocked = $isFirstModule;
-            
-            if (!$isFirstModule && $hasPack) {
-                $previousModule = Module::where('pack_id', $pack->id)
-                    ->where('ordre', '<', $module->ordre)
-                    ->orderByDesc('ordre')
-                    ->first();
-                    
-                if ($previousModule) {
-                    $totalChapters = Chapter::where('module_id', $previousModule->id)
-                        ->active()
-                        ->count();
-                        
-                    $completedChapters = ChapterUnlock::where('user_id', $user->id)
-                        ->whereIn('chapter_id', Chapter::where('module_id', $previousModule->id)
-                            ->active()
-                            ->pluck('id'))
-                        ->count();
-                    
-                    $isModuleUnlocked = ($completedChapters >= $totalChapters);
+            $isModuleUnlocked = false;
+
+            if ($hasPack) {
+                if ($isFirstModule) {
+                    $isModuleUnlocked = true;
+                } else {
+                    // Le module est déverrouillé si le module précédent est validé ou si explicitement débloqué
+                    $prevModule = $modules[$moduleIndex - 1];
+                    $prevCompleted = $prevModule->isCompletedBy($user);
+                    $isModuleUnlocked = $prevCompleted || $module->isUnlockedFor($user);
                 }
             }
 
-            $chaptersData = $module->chapters->map(function ($chapter, $chapterIndex) use ($user, $hasPack, $moduleIndex, $isModuleUnlocked) {
-                $lessonsCount = $chapter->lessons_count;
-                $completedCount = 0;
-                $isFirstChapter = $chapterIndex === 0;
-                
-                // ✅ CORRECTION: Premier chapitre du premier module déverrouillé automatiquement
-                $isUnlocked = false;
+            $allLessons = $module->lessons;
+            $totalLessons = $allLessons->count();
+            $completedLessonsCount = 0;
 
-                if ($hasPack && $isModuleUnlocked) {
-                    $completedCount = LessonProgress::where('user_id', $user->id)
-                        ->whereIn('lesson_id', $chapter->lessons()->pluck('id'))
-                        ->where('completed', true)
-                        ->count();
-                    
-                    if ($moduleIndex === 0 && $isFirstChapter) {
-                        // Premier chapitre du premier module toujours déverrouillé
-                        $isUnlocked = true;
-                    } else {
-                        $isUnlocked = $chapter->isUnlockedFor($user);
-                    }
+            if ($hasPack && $isModuleUnlocked && $totalLessons > 0) {
+                $completedLessonsCount = LessonProgress::where('user_id', $user->id)
+                    ->whereIn('lesson_id', $allLessons->pluck('id'))
+                    ->where('completed', true)
+                    ->count();
+            }
+
+            $allLessonsDone = ($totalLessons > 0) ? ($completedLessonsCount >= $totalLessons) : true;
+            $activeQuiz = $module->quizzes->first();
+            $hasQuiz = !is_null($activeQuiz);
+
+            $quizResult = null;
+            if ($hasPack && $hasQuiz) {
+                $quizResult = QuizResult::where('user_id', $user->id)
+                    ->whereIn('quiz_id', $module->quizzes->pluck('id'))
+                    ->orderByDesc('note')
+                    ->first();
+            }
+
+            $quizPassed = $quizResult ? (bool) $quizResult->reussi : false;
+
+            // Règle : Si aucun quiz n'est dispo pour un module, on valide le module entier comme terminé dès que la dernière leçon est terminée
+            $isModuleCompleted = false;
+            if ($hasPack && $isModuleUnlocked) {
+                if (!$hasQuiz) {
+                    $isModuleCompleted = $allLessonsDone && $totalLessons > 0;
+                } else {
+                    $isModuleCompleted = $allLessonsDone && $quizPassed;
                 }
+            }
 
-                return [
-                    'id' => $chapter->id,
-                    'nom' => $chapter->nom,
-                    'description' => $chapter->description,
-                    'lessons_count' => $lessonsCount,
-                    'completed_count' => $completedCount,
-                    'is_unlocked' => $isUnlocked,
-                    'is_completed' => $completedCount >= $lessonsCount && $lessonsCount > 0,
-                    'has_access' => $hasPack && $isModuleUnlocked,
-                    'has_quiz' => $chapter->quizzes()->active()->exists(),
-                    'note_passage' => $chapter->note_passage,
-                ];
-            });
-
-            return [
+            $modulesData[] = [
                 'id' => $module->id,
                 'nom' => $module->nom,
                 'description' => $module->description,
                 'type' => $module->type,
-                'chapters_count' => $module->chapters->count(),
-                'chapters' => $chaptersData,
-                'is_unlocked' => $hasPack && $isModuleUnlocked,
+                'ordre' => $module->ordre,
+                'note_passage' => $module->note_passage ?? 14,
+                'note_parrainage' => $module->note_parrainage ?? 10,
+                'parrainages_requis' => $module->parrainages_requis ?? 4,
+                'lessons_count' => $totalLessons,
+                'completed_count' => $completedLessonsCount,
+                'has_quiz' => $hasQuiz,
+                'quiz_passed' => $quizPassed,
+                'is_unlocked' => $isModuleUnlocked,
+                'is_completed' => $isModuleCompleted,
                 'has_access' => $hasPack,
-            ];
-        })->toArray();
-    }
-
-    public function getModuleChapters(EliteUser $user, int $moduleId): array
-    {
-        $module = Module::with('pack')->findOrFail($moduleId);
-        $hasPack = $this->userHasPack($user, $module->pack_id);
-
-        $chapters = Chapter::where('module_id', $moduleId)
-            ->active()
-            ->orderBy('ordre')
-            ->with(['lessons' => function ($q) {
-                $q->active()->orderBy('ordre');
-            }, 'quizzes' => function ($q) {
-                $q->active()->orderBy('ordre');
-            }])
-            ->get();
-
-        return $chapters->map(function ($chapter, $index) use ($user, $hasPack) {
-            $lessonsProgress = $chapter->lessons->map(function ($lesson) use ($user, $hasPack, $chapter) {
-                $progress = null;
-                $isUnlocked = false;
-
-                if ($hasPack) {
-                    $progress = LessonProgress::where('user_id', $user->id)
-                        ->where('lesson_id', $lesson->id)
-                        ->first();
-                    
-                    $isUnlocked = $this->isLessonUnlocked($user, $lesson, $chapter);
-                }
-
-                return [
-                    'id' => $lesson->id,
-                    'titre' => $lesson->titre,
-                    'duree_minutes' => $lesson->duree_minutes,
-                    'is_completed' => $progress ? $progress->completed : false,
-                    'has_video' => !empty($lesson->url_video),
-                    'has_web_link' => !empty($lesson->url_web),
-                ];
-            });
-
-            $quizResult = null;
-            $isChapterUnlocked = false;
-
-            if ($hasPack) {
-                $quizResult = QuizResult::where('user_id', $user->id)
-                    ->whereIn('quiz_id', $chapter->quizzes->pluck('id'))
-                    ->orderByDesc('note')
-                    ->first();
-                
-                $isChapterUnlocked = $index === 0 || $chapter->isUnlockedFor($user);
-            }
-
-            return [
-                'id' => $chapter->id,
-                'nom' => $chapter->nom,
-                'description' => $chapter->description,
-                'is_unlocked' => $isChapterUnlocked,
-                'has_access' => $hasPack,
-                'note_passage' => $chapter->note_passage,
-                'note_parrainage' => $chapter->note_parrainage,
-                'parrainages_requis' => $chapter->parrainages_requis,
-                'lessons' => $lessonsProgress,
-                'has_quiz' => $chapter->quizzes->isNotEmpty(),
-                'quiz' => $chapter->quizzes->first() ? [
-                    'id' => $chapter->quizzes->first()->id,
-                    'titre' => $chapter->quizzes->first()->titre,
-                    'duree_minutes' => $chapter->quizzes->first()->duree_minutes,
-                    'best_score' => $quizResult ? $quizResult->note : null,
-                    'passed' => $quizResult ? $quizResult->reussi : false,
+                'quiz_info' => $hasQuiz && $quizResult ? [
+                    'id' => $activeQuiz->id,
+                    'titre' => $activeQuiz->titre,
+                    'best_score' => $quizResult->note,
+                    'passed' => $quizPassed,
+                    'attempts' => QuizResult::where('user_id', $user->id)->where('quiz_id', $activeQuiz->id)->count(),
                 ] : null,
             ];
-        })->toArray();
-    }
-
-    public function getChapterLessons(EliteUser $user, int $chapterId): array
-    {
-        $chapter = Chapter::with('module.pack')->findOrFail($chapterId);
-        $hasPack = $this->userHasPack($user, $chapter->module->pack_id);
-
-        if ($hasPack) {
-            $this->verifyChapterAccess($user, $chapter);
         }
 
-        $lessons = Lesson::where('chapter_id', $chapterId)
-            ->active()
-            ->orderBy('ordre')
-            ->get();
+        return $modulesData;
+    }
 
-        return $lessons->map(function ($lesson, $index) use ($user, $hasPack, $chapter) {
-            $progress = null;
+    public function getModuleLessons(EliteUser $user, int $moduleId): array
+    {
+        $module = Module::with(['pack', 'lessons' => function ($q) {
+            $q->active()->orderBy('ordre')->orderBy('id');
+        }, 'quizzes' => function ($q) {
+            $q->active()->orderBy('ordre');
+        }])->findOrFail($moduleId);
+
+        $hasPack = $this->userHasPack($user, $module->pack_id);
+
+        if ($hasPack) {
+            $this->verifyModuleAccess($user, $module);
+        }
+
+        $allLessons = $module->lessons;
+        $completedLessonIds = $hasPack
+            ? LessonProgress::where('user_id', $user->id)
+                ->whereIn('lesson_id', $allLessons->pluck('id'))
+                ->where('completed', true)
+                ->pluck('lesson_id')
+                ->toArray()
+            : [];
+
+        $progresses = $hasPack
+            ? LessonProgress::where('user_id', $user->id)
+                ->whereIn('lesson_id', $allLessons->pluck('id'))
+                ->get()
+                ->keyBy('lesson_id')
+            : collect();
+
+        $isModuleUnlocked = $hasPack && $this->isModuleAccessible($user, $module);
+
+        $lessonsProgress = $allLessons->map(function ($lesson, $index) use ($user, $hasPack, $allLessons, $completedLessonIds, $progresses, $isModuleUnlocked) {
+            $progress = $progresses->get($lesson->id);
+            $isCompleted = in_array($lesson->id, $completedLessonIds);
             $isUnlocked = false;
 
-            if ($hasPack) {
-                $progress = LessonProgress::where('user_id', $user->id)
-                    ->where('lesson_id', $lesson->id)
-                    ->first();
-                
-                // Première leçon toujours déverrouillée si chapitre déverrouillé
-                $isUnlocked = $index === 0 || $this->isLessonUnlocked($user, $lesson, $chapter);
+            if ($hasPack && $isModuleUnlocked) {
+                if ($index === 0) {
+                    $isUnlocked = true;
+                } else {
+                    $prevLesson = $allLessons[$index - 1];
+                    $isUnlocked = in_array($prevLesson->id, $completedLessonIds);
+                }
             }
 
             return [
                 'id' => $lesson->id,
+                'module_id' => $lesson->module_id,
                 'titre' => $lesson->titre,
                 'duree_minutes' => $lesson->duree_minutes,
-                'is_completed' => $progress ? $progress->completed : false,
+                'is_completed' => $isCompleted,
                 'temps_passe' => $progress ? $progress->temps_passe_secondes : 0,
                 'is_unlocked' => $isUnlocked,
                 'has_access' => $hasPack,
+                'has_video' => !empty($lesson->url_video) || !empty($lesson->url_video_explication) || !empty($lesson->url_video_pratique),
+                'has_web_link' => !empty($lesson->url_web),
                 'url_video' => $hasPack && $isUnlocked ? $lesson->url_video : null,
+                'url_video_explication' => $hasPack && $isUnlocked ? $lesson->url_video_explication : null,
+                'url_video_pratique' => $hasPack && $isUnlocked ? $lesson->url_video_pratique : null,
                 'url_web' => $hasPack && $isUnlocked ? $lesson->url_web : null,
             ];
         })->toArray();
+
+        $activeQuiz = $module->quizzes->first();
+        $hasQuiz = !is_null($activeQuiz);
+        $quizResult = null;
+
+        if ($hasPack && $hasQuiz) {
+            $quizResult = QuizResult::where('user_id', $user->id)
+                ->whereIn('quiz_id', $module->quizzes->pluck('id'))
+                ->orderByDesc('note')
+                ->first();
+        }
+
+        $allLessonsDone = count($completedLessonIds) >= $allLessons->count() && $allLessons->count() > 0;
+        $quizPassed = $quizResult ? (bool) $quizResult->reussi : false;
+
+        $moduleCompleted = false;
+        if ($hasPack && $isModuleUnlocked) {
+            if (!$hasQuiz) {
+                $moduleCompleted = $allLessonsDone;
+            } else {
+                $moduleCompleted = $allLessonsDone && $quizPassed;
+            }
+        }
+
+        return [
+            'module' => [
+                'id' => $module->id,
+                'nom' => $module->nom,
+                'description' => $module->description,
+                'type' => $module->type,
+                'pack_id' => $module->pack_id,
+                'pack_nom' => $module->pack?->nom,
+                'is_unlocked' => $isModuleUnlocked,
+                'is_completed' => $moduleCompleted,
+                'completed_count' => count($completedLessonIds),
+                'lessons_count' => $allLessons->count(),
+                'has_access' => $hasPack,
+                'note_passage' => $module->note_passage ?? 14,
+                'note_parrainage' => $module->note_parrainage ?? 10,
+                'parrainages_requis' => $module->parrainages_requis ?? 4,
+            ],
+            'lessons' => $lessonsProgress,
+            'has_quiz' => $hasQuiz,
+            'quiz' => $hasQuiz ? [
+                'id' => $activeQuiz->id,
+                'titre' => $activeQuiz->titre,
+                'description' => $activeQuiz->description,
+                'duree_minutes' => $activeQuiz->duree_minutes,
+                'is_unlocked' => $allLessonsDone,
+                'best_score' => $quizResult ? $quizResult->note : null,
+                'passed' => $quizPassed,
+                'attempts' => $quizResult ? QuizResult::where('user_id', $user->id)->where('quiz_id', $activeQuiz->id)->count() : 0,
+            ] : null,
+        ];
     }
 
     public function getLesson(EliteUser $user, int $lessonId): array
     {
-        $lesson = Lesson::with(['chapter.module.pack', 'chapter'])->findOrFail($lessonId);
-        
-        $this->verifyPackAccess($user, $lesson->chapter->module->pack_id);
-        $this->verifyChapterAccess($user, $lesson->chapter);
+        $lesson = Lesson::with(['module.pack'])->findOrFail($lessonId);
+
+        // Fallback si module_id n'est pas encore défini mais chapter_id l'est
+        if (!$lesson->module_id && $lesson->chapter_id) {
+            $chapter = DB::table('chapters')->where('id', $lesson->chapter_id)->first();
+            if ($chapter && $chapter->module_id) {
+                $lesson->module_id = $chapter->module_id;
+                $lesson->save();
+                $lesson->load('module.pack');
+            }
+        }
+
+        $packId = $lesson->module?->pack_id;
+        $this->verifyPackAccess($user, $packId);
+        $this->verifyModuleAccess($user, $lesson->module);
         $this->verifyLessonAccess($user, $lesson);
+        $this->verifyCourseSchedule($user, $lesson);
 
         $progress = LessonProgress::where('user_id', $user->id)
             ->where('lesson_id', $lessonId)
             ->first();
 
-        // Trouver leçon précédente et suivante
-        $previousLesson = Lesson::where('chapter_id', $lesson->chapter_id)
-            ->where('ordre', '<', $lesson->ordre)
-            ->active()
-            ->orderByDesc('ordre')
-            ->first();
-
-        $nextLesson = Lesson::where('chapter_id', $lesson->chapter_id)
-            ->where('ordre', '>', $lesson->ordre)
+        // Récupérer toutes les leçons actives du module ordonnées
+        $allLessons = Lesson::where('module_id', $lesson->module_id)
             ->active()
             ->orderBy('ordre')
-            ->first();
+            ->orderBy('id')
+            ->get();
+
+        $currentIndex = $allLessons->search(fn($l) => $l->id === $lesson->id);
+        $previousLesson = ($currentIndex !== false && $currentIndex > 0) ? $allLessons[$currentIndex - 1] : null;
+        $nextLesson = ($currentIndex !== false && $currentIndex < $allLessons->count() - 1) ? $allLessons[$currentIndex + 1] : null;
 
         return [
             'id' => $lesson->id,
@@ -400,13 +435,26 @@ class CourseService
             'contenu_texte' => $lesson->contenu_texte,
             'url_web' => $lesson->url_web,
             'url_video' => $lesson->url_video,
+            'url_video_explication' => $lesson->url_video_explication,
+            'url_video_pratique' => $lesson->url_video_pratique,
             'duree_minutes' => $lesson->duree_minutes,
-            'is_completed' => $progress ? $progress->completed : false,
+            'is_completed' => $progress ? (bool)$progress->completed : false,
             'temps_passe' => $progress ? $progress->temps_passe_secondes : 0,
-            'chapter' => [
-                'id' => $lesson->chapter->id,
-                'nom' => $lesson->chapter->nom,
-            ],
+            'module' => $lesson->module ? [
+                'id' => $lesson->module->id,
+                'nom' => $lesson->module->nom,
+                'pack_id' => $lesson->module->pack_id,
+            ] : null,
+            // Maintenir compatibilité avec chapter
+            'chapter' => $lesson->module ? [
+                'id' => $lesson->module->id,
+                'nom' => $lesson->module->nom,
+                'module' => [
+                    'id' => $lesson->module->id,
+                    'nom' => $lesson->module->nom,
+                    'pack_id' => $lesson->module->pack_id,
+                ]
+            ] : null,
             'previous_lesson' => $previousLesson ? [
                 'id' => $previousLesson->id,
                 'titre' => $previousLesson->titre,
@@ -418,51 +466,134 @@ class CourseService
         ];
     }
 
-    public function markLessonComplete(EliteUser $user, int $lessonId, int $tempsPasse = 0): void
+    public function markLessonComplete(EliteUser $user, int $lessonId, int $tempsPasse = 0): array
     {
-        $lesson = Lesson::with('chapter.module.pack')->findOrFail($lessonId);
-        $this->verifyPackAccess($user, $lesson->chapter->module->pack_id);
-        $this->verifyChapterAccess($user, $lesson->chapter);
+        $lesson = Lesson::with('module.pack')->findOrFail($lessonId);
+        $module = $lesson->module;
+
+        $this->verifyPackAccess($user, $module->pack_id);
+        $this->verifyModuleAccess($user, $module);
         $this->verifyLessonAccess($user, $lesson);
 
-        LessonProgress::updateOrCreate(
-            [
-                'user_id' => $user->id,
-                'lesson_id' => $lessonId,
-            ],
-            [
-                'completed' => true,
-                'temps_passe_secondes' => DB::raw("temps_passe_secondes + {$tempsPasse}"),
-                'date_completion' => now(),
-            ]
-        );
+        $progress = LessonProgress::firstOrNew([
+            'user_id' => $user->id,
+            'lesson_id' => $lessonId,
+        ]);
+
+        $progress->completed = true;
+        $progress->temps_passe_secondes = (int) ($progress->temps_passe_secondes ?? 0) + max(0, (int) $tempsPasse);
+        $progress->date_completion = now();
+        $progress->save();
 
         $userPack = UserPack::where('user_id', $user->id)
-            ->where('pack_id', $lesson->chapter->module->pack_id)
+            ->where('pack_id', $module->pack_id)
             ->first();
 
         if ($userPack) {
             $userPack->updateProgression();
         }
+
+        // Vérifier si toutes les leçons du module sont terminées
+        $allLessonsDone = $module->allLessonsCompletedBy($user);
+        $activeQuiz = $module->activeQuiz();
+        $moduleCompleted = false;
+        $nextModuleUnlocked = false;
+
+        // RÈGLE : "si aucun quiz nest dispo pour un module on valide le module entier comme terminer des que la derniere lecon est terminer"
+        if ($allLessonsDone && !$activeQuiz) {
+            $moduleCompleted = true;
+            $nextModuleUnlocked = $this->unlockNextModule($user, $module, 'auto');
+        }
+
+        return [
+            'success' => true,
+            'all_lessons_completed' => $allLessonsDone,
+            'has_quiz' => !is_null($activeQuiz),
+            'module_completed' => $moduleCompleted,
+            'next_module_unlocked' => $nextModuleUnlocked,
+        ];
     }
 
-    public function getChapterQuiz(EliteUser $user, int $chapterId): array
+    public function ensureModuleQuiz(Module $module): Quiz
     {
-        $chapter = Chapter::with('module.pack')->findOrFail($chapterId);
-        $this->verifyPackAccess($user, $chapter->module->pack_id);
-        $this->verifyChapterAccess($user, $chapter);
-        $this->verifyAllLessonsCompleted($user, $chapter);
-
-        $quiz = Quiz::where('chapter_id', $chapterId)
+        $quiz = Quiz::where('module_id', $module->id)
             ->active()
-            ->with(['questions' => function ($q) {
-                $q->active()->orderBy('ordre')->with('answers');
-            }])
+            ->with(['questions.answers'])
             ->first();
 
         if (!$quiz) {
+            $quiz = Quiz::create([
+                'module_id' => $module->id,
+                'titre' => 'Quiz de validation - ' . $module->nom,
+                'description' => 'Évaluez votre bonne compréhension du module : ' . $module->nom . '.',
+                'note_totale' => 20,
+                'duree_minutes' => 10,
+                'ordre' => 1,
+                'active' => true,
+            ]);
+        }
+
+        if ($quiz->questions()->count() === 0) {
+            $defaultQuestions = [
+                [
+                    'enonce' => "Avez-vous bien compris et assimilé les concepts clés présentés dans le module « " . $module->nom . " » ?",
+                    'type' => 'qcm',
+                    'points' => 2,
+                    'ordre' => 1,
+                    'explication' => "La bonne assimilation des notions clés est essentielle pour progresser dans la formation.",
+                    'answers' => [
+                        ['texte' => "Oui, j'ai bien compris l'ensemble des notions abordées", 'est_correcte' => true, 'ordre' => 1],
+                        ['texte' => "Non, je dois encore revoir certains points", 'est_correcte' => false, 'ordre' => 2],
+                    ],
+                ],
+                [
+                    'enonce' => "Avez-vous suivi toutes les étapes (Théorie, Explication vidéo, Pratique) des leçons de ce module ?",
+                    'type' => 'qcm',
+                    'points' => 2,
+                    'ordre' => 2,
+                    'explication' => "La démarche pédagogique en 3 étapes garantit une maîtrise théorique et pratique.",
+                    'answers' => [
+                        ['texte' => "Oui, j'ai suivi avec attention toutes les étapes", 'est_correcte' => true, 'ordre' => 1],
+                        ['texte' => "Non, j'ai sauté certaines étapes", 'est_correcte' => false, 'ordre' => 2],
+                    ],
+                ],
+                [
+                    'enonce' => "Vous sentez-vous prêt(e) à appliquer ces connaissances et à débloquer le module suivant ?",
+                    'type' => 'qcm',
+                    'points' => 2,
+                    'ordre' => 3,
+                    'explication' => "La confiance et la pratique permettent d'aborder sereinement la suite de votre parcours.",
+                    'answers' => [
+                        ['texte' => "Oui, je suis prêt(e) à continuer", 'est_correcte' => true, 'ordre' => 1],
+                        ['texte' => "Non, je souhaite d'abord réviser", 'est_correcte' => false, 'ordre' => 2],
+                    ],
+                ],
+            ];
+
+            foreach ($defaultQuestions as $qData) {
+                $answers = $qData['answers'];
+                unset($qData['answers']);
+                $question = $quiz->questions()->create($qData);
+                foreach ($answers as $aData) {
+                    $question->answers()->create($aData);
+                }
+            }
+        }
+
+        return $quiz->load(['questions.answers']);
+    }
+
+    public function getModuleQuiz(EliteUser $user, int $moduleId): array
+    {
+        $module = Module::with(['pack', 'quizzes.questions.answers'])->findOrFail($moduleId);
+        $this->verifyPackAccess($user, $module->pack_id);
+        $this->verifyModuleAccess($user, $module);
+        $this->verifyAllModuleLessonsCompleted($user, $module);
+
+        $quiz = $module->activeQuiz();
+        if (!$quiz) {
             throw ValidationException::withMessages([
-                'quiz' => ['Aucun quiz disponible pour ce chapitre.']
+                'quiz' => ['Aucun quiz n\'est configuré pour ce module. Le module est validé dès la fin des leçons.']
             ]);
         }
 
@@ -472,12 +603,13 @@ class CourseService
 
         return [
             'id' => $quiz->id,
+            'module_id' => $module->id,
             'titre' => $quiz->titre,
             'description' => $quiz->description,
             'duree_minutes' => $quiz->duree_minutes,
-            'note_totale' => $quiz->note_totale,
-            'note_passage' => $chapter->note_passage,
-            'note_parrainage' => $chapter->note_parrainage,
+            'note_totale' => $quiz->note_totale ?: 20,
+            'note_passage' => $module->note_passage ?: 14,
+            'note_parrainage' => $module->note_parrainage ?: 10,
             'attempts' => $attempts,
             'questions' => $quiz->questions->map(function ($question) {
                 return [
@@ -490,6 +622,7 @@ class CourseService
                         return [
                             'id' => $answer->id,
                             'texte' => $answer->texte,
+                            'est_correcte' => (bool)$answer->est_correcte,
                         ];
                     }),
                 ];
@@ -499,26 +632,34 @@ class CourseService
 
     public function submitQuiz(EliteUser $user, int $quizId, array $responses): array
     {
-        $quiz = Quiz::with(['chapter.module.pack', 'questions.answers'])->findOrFail($quizId);
-        $chapter = $quiz->chapter;
-        $this->verifyPackAccess($user, $chapter->module->pack_id);
-        $this->verifyAllLessonsCompleted($user, $chapter);
+        $quiz = Quiz::with(['module.pack', 'questions.answers'])->findOrFail($quizId);
+        $module = $quiz->module;
+
+        $this->verifyPackAccess($user, $module->pack_id);
+        $this->verifyAllModuleLessonsCompleted($user, $module);
+
+        $questions = $quiz->questions;
+        if ($questions->isEmpty()) {
+            $quiz = $this->ensureModuleQuiz($module);
+            $questions = $quiz->questions;
+        }
 
         $totalPoints = 0;
         $earnedPoints = 0;
         $correctCount = 0;
         $userResponses = [];
 
-        foreach ($quiz->questions as $question) {
-            $totalPoints += $question->points;
+        foreach ($questions as $question) {
+            $points = $question->points > 0 ? $question->points : 2;
+            $totalPoints += $points;
             $userAnswer = collect($responses)->firstWhere('question_id', $question->id);
             
             if ($userAnswer) {
-                $correctAnswerIds = $question->correctAnswers->pluck('id')->toArray();
+                $correctAnswerIds = $question->answers()->where('est_correcte', true)->pluck('id')->toArray();
                 $isCorrect = in_array($userAnswer['answer_id'], $correctAnswerIds);
                 
                 if ($isCorrect) {
-                    $earnedPoints += $question->points;
+                    $earnedPoints += $points;
                     $correctCount++;
                 }
 
@@ -526,6 +667,7 @@ class CourseService
                     'question_id' => $question->id,
                     'answer_id' => $userAnswer['answer_id'],
                     'is_correct' => $isCorrect,
+                    'correct' => $isCorrect,
                     'explication' => $question->explication,
                 ];
             }
@@ -534,12 +676,15 @@ class CourseService
         $note = $totalPoints > 0 ? ($earnedPoints / $totalPoints) * 20 : 0;
         $note = round($note, 2);
 
-        $actionRequise = 'aucune';
-        $reussi = false;
+        $passingGrade = $module->note_passage > 0 ? $module->note_passage : 14;
+        $reussi = $questions->count() >= 10
+            ? $correctCount >= 7
+            : $note >= $passingGrade;
 
-        if ($note >= $chapter->note_passage) {
-            $reussi = true;
-        } elseif ($note >= $chapter->note_parrainage) {
+        $actionRequise = 'aucune';
+        if ($reussi) {
+            $actionRequise = 'aucune';
+        } elseif ($note >= ($module->note_parrainage ?: 10)) {
             $actionRequise = 'parrainage';
         } else {
             $actionRequise = 'recommencer';
@@ -549,60 +694,104 @@ class CourseService
             ->where('quiz_id', $quizId)
             ->count() + 1;
 
+        $pointsParBonneReponse = max(0, (int) \App\Models\SystemSetting::get('points_par_bonne_reponse_quiz', 500));
+        
+        // 500 points par bonne réponse => 10/10 rapporte 5 000 points MAX
+        $pointsGagnes = min(5000, $correctCount * $pointsParBonneReponse);
+
+        $jackpot = \App\Models\SystemSetting::get('quiz_cagnotte_fcfa', [0, 1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000]);
+        $palierAtteint = min($correctCount, 10);
+        $gainCagnotte = (float) ($jackpot[$palierAtteint] ?? 0);
+
         $result = QuizResult::create([
             'user_id' => $user->id,
             'quiz_id' => $quizId,
-            'note' => $earnedPoints,
-            'total_questions' => $quiz->questions->count(),
+            'note' => $note,
+            'total_questions' => $questions->count(),
             'bonnes_reponses' => $correctCount,
+            'points_gagnes' => $pointsGagnes,
+            'palier_atteint' => $palierAtteint,
+            'gain_cagnotte_fcfa' => $gainCagnotte,
             'reussi' => $reussi,
             'reponses_utilisateur' => $userResponses,
             'tentative' => $tentative,
             'action_requise' => $actionRequise,
         ]);
 
-        if ($reussi) {
-            $this->unlockNextChapter($user, $chapter, 'score');
+        if ($pointsGagnes > 0) {
+            $user->addPoints($pointsGagnes);
         }
+
+        if ($reussi) {
+            $this->unlockNextModule($user, $module, 'score');
+        }
+
+        $parrainageRequis = $actionRequise === 'parrainage';
+        $nombreParrainagesRequis = $parrainageRequis ? ($module->parrainages_requis ?? 4) : 0;
+        $filleulsActuels = $user->referralHistory()->count();
 
         return [
             'note' => $note,
             'note_sur_20' => $note,
-            'total_questions' => $quiz->questions->count(),
+            'total_questions' => $questions->count(),
             'bonnes_reponses' => $correctCount,
+            'points_gagnes' => $pointsGagnes,
+            'bonus_premier_essai_100_points' => false,
+            'palier_atteint' => $palierAtteint,
+            'gain_cagnotte_fcfa' => $gainCagnotte,
             'reussi' => $reussi,
+            'module_suivant_debloque' => $reussi,
+            'chapitre_suivant_debloque' => $reussi, // Alias
             'action_requise' => $actionRequise,
-            'parrainages_requis' => $actionRequise === 'parrainage' ? $chapter->parrainages_requis : 0,
+            'parrainages_requis' => $nombreParrainagesRequis,
+            'options' => [
+                'peut_recommencer' => true,
+                'parrainage_requis' => $parrainageRequis,
+                'nombre_parrainages_requis' => $module->parrainages_requis ?? 4,
+                'filleuls_actuels' => $filleulsActuels,
+                'parrainages_manquants' => max(0, ($module->parrainages_requis ?? 4) - $filleulsActuels),
+            ],
             'corrections' => $userResponses,
-            'message' => $this->getResultMessage($note, $reussi, $actionRequise, $chapter),
+            'message' => $this->getResultMessage($note, $reussi, $actionRequise, $module),
         ];
     }
 
-    private function unlockNextChapter(EliteUser $user, Chapter $currentChapter, string $method): void
+    public function unlockNextModule(EliteUser $user, Module $currentModule, string $method): bool
     {
-        $nextChapter = Chapter::where('module_id', $currentChapter->module_id)
-            ->where('ordre', '>', $currentChapter->ordre)
+        $nextModule = Module::where('pack_id', $currentModule->pack_id)
+            ->where(function($q) use ($currentModule) {
+                $q->where('ordre', '>', $currentModule->ordre)
+                  ->orWhere(function($q2) use ($currentModule) {
+                      $q2->where('ordre', $currentModule->ordre)
+                         ->where('id', '>', $currentModule->id);
+                  });
+            })
+            ->active()
             ->orderBy('ordre')
+            ->orderBy('id')
             ->first();
 
-        if ($nextChapter) {
-            ChapterUnlock::firstOrCreate([
+        if ($nextModule) {
+            ModuleUnlock::firstOrCreate([
                 'user_id' => $user->id,
-                'chapter_id' => $nextChapter->id,
+                'module_id' => $nextModule->id,
             ], [
                 'unlock_method' => $method,
             ]);
+            return true;
         }
+
+        return false;
     }
 
-    public function unlockChapterByReferral(EliteUser $user, int $chapterId): array
+    public function unlockModuleByReferral(EliteUser $user, int $moduleId): array
     {
-        $chapter = Chapter::with('module.pack')->findOrFail($chapterId);
-        $this->verifyPackAccess($user, $chapter->module->pack_id);
+        $module = Module::with('pack')->findOrFail($moduleId);
+        $this->verifyPackAccess($user, $module->pack_id);
 
         $lastResult = QuizResult::where('user_id', $user->id)
-            ->whereHas('quiz', function ($q) use ($chapterId) {
-                $q->where('chapter_id', $chapterId);
+            ->whereHas('quiz', function ($q) use ($moduleId) {
+                $q->where('module_id', $moduleId);
             })
             ->where('action_requise', 'parrainage')
             ->latest()
@@ -610,7 +799,7 @@ class CourseService
 
         if (!$lastResult) {
             throw ValidationException::withMessages([
-                'quiz' => ['Vous devez d\'abord passer le quiz avec une note entre 10 et 14.']
+                'quiz' => ['Vous devez d\'abord passer le quiz avec une note admissible pour le parrainage.']
             ]);
         }
 
@@ -618,7 +807,7 @@ class CourseService
             ->where('created_at', '>=', $lastResult->created_at)
             ->count();
 
-        $parrainagesRequis = $chapter->parrainages_requis;
+        $parrainagesRequis = $module->parrainages_requis ?? 4;
         $parrainagesEffectues = $lastResult->parrainages_effectues + $parrainagesDepuisQuiz;
 
         if ($parrainagesEffectues < $parrainagesRequis) {
@@ -627,11 +816,11 @@ class CourseService
                 'parrainages_effectues' => $parrainagesEffectues,
                 'parrainages_requis' => $parrainagesRequis,
                 'parrainages_restants' => $parrainagesRequis - $parrainagesEffectues,
-                'message' => "Il vous manque encore " . ($parrainagesRequis - $parrainagesEffectues) . " parrainage(s) pour débloquer ce chapitre.",
+                'message' => "Il vous manque encore " . ($parrainagesRequis - $parrainagesEffectues) . " parrainage(s) pour débloquer le module suivant.",
             ];
         }
 
-        $this->unlockNextChapter($user, $chapter, 'parrainage');
+        $this->unlockNextModule($user, $module, 'parrainage');
 
         $lastResult->update([
             'parrainages_effectues' => $parrainagesEffectues,
@@ -641,116 +830,213 @@ class CourseService
 
         return [
             'unlocked' => true,
-            'message' => 'Félicitations ! Le chapitre suivant a été débloqué grâce à vos parrainages.',
+            'message' => 'Félicitations ! Le module suivant a été débloqué grâce à vos parrainages.',
         ];
     }
 
     private function userHasPack(EliteUser $user, int $packId): bool
     {
-        return UserPack::where('user_id', $user->id)
+        $hasPack = UserPack::where('user_id', $user->id)
             ->where('pack_id', $packId)
             ->where('statut', '!=', 'expire')
             ->exists();
+
+        if ($hasPack) {
+            return true;
+        }
+
+        // Si l'étudiant est rattaché à un partenaire
+        if ($user->partner_id) {
+            $plan = PartnerPaymentPlan::where('partner_id', $user->partner_id)
+                ->where('pack_id', $packId)
+                ->where('active', true)
+                ->first();
+
+            if (!$plan) {
+                $pack = Pack::find($packId);
+                if ($pack) {
+                    app(PartnerPaymentService::class)->attachPlanToPack($user, $pack);
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
-    private function verifyPackAccess(EliteUser $user, int $packId): void
+    private function verifyPackAccess(EliteUser $user, ?int $packId): void
     {
-        if (!$this->userHasPack($user, $packId)) {
+        if (!$packId || !$this->userHasPack($user, $packId)) {
             throw ValidationException::withMessages([
                 'pack' => ['Vous n\'avez pas accès à ce pack. Veuillez l\'acheter d\'abord.']
             ]);
         }
     }
 
-    private function verifyChapterAccess(EliteUser $user, Chapter $chapter): void
+    private function isModuleAccessible(EliteUser $user, Module $module): bool
     {
-        // Premier chapitre du pack toujours accessible
-        $firstChapter = Chapter::whereHas('module', function($q) use ($chapter) {
-            $q->where('pack_id', $chapter->module->pack_id)
-              ->where('ordre', 1);
-        })->where('ordre', 1)->first();
+        $firstModule = Module::where('pack_id', $module->pack_id)
+            ->active()
+            ->orderBy('ordre')
+            ->orderBy('id')
+            ->first();
 
-        if ($firstChapter && $firstChapter->id === $chapter->id) {
-            return; // Premier chapitre accessible
+        if ($firstModule && $firstModule->id === $module->id) {
+            return true;
         }
 
-        if (!$chapter->isUnlockedFor($user)) {
+        return $module->isUnlockedFor($user);
+    }
+
+    private function verifyModuleAccess(EliteUser $user, Module $module): void
+    {
+        if (!$this->isModuleAccessible($user, $module)) {
             throw ValidationException::withMessages([
-                'chapter' => ['Ce chapitre est verrouillé. Vous devez terminer le chapitre précédent et réussir son quiz pour y accéder.']
+                'module' => ['Ce module est verrouillé. Vous devez terminer le module précédent pour y accéder.']
             ]);
         }
     }
 
-    private function isLessonUnlocked(EliteUser $user, Lesson $lesson, Chapter $chapter): bool
+    private function isLessonUnlocked(EliteUser $user, Lesson $lesson, Module $module): bool
     {
-        if (!$chapter->isUnlockedFor($user)) {
+        if (!$this->isModuleAccessible($user, $module)) {
             return false;
         }
 
-        $firstLesson = Lesson::where('chapter_id', $chapter->id)
+        $firstLesson = Lesson::where('module_id', $module->id)
             ->active()
             ->orderBy('ordre')
+            ->orderBy('id')
             ->first();
 
         if ($firstLesson && $firstLesson->id === $lesson->id) {
             return true;
         }
 
-        $previousLesson = Lesson::where('chapter_id', $chapter->id)
+        $previousLesson = Lesson::where('module_id', $module->id)
             ->where('ordre', '<', $lesson->ordre)
             ->active()
             ->orderByDesc('ordre')
+            ->orderByDesc('id')
             ->first();
 
         if (!$previousLesson) {
             return true;
         }
 
-        $previousProgress = LessonProgress::where('user_id', $user->id)
+        return LessonProgress::where('user_id', $user->id)
             ->where('lesson_id', $previousLesson->id)
             ->where('completed', true)
             ->exists();
-
-        return $previousProgress;
     }
 
     private function verifyLessonAccess(EliteUser $user, Lesson $lesson): void
     {
-        if (!$this->isLessonUnlocked($user, $lesson, $lesson->chapter)) {
+        if (!$lesson->module || !$this->isLessonUnlocked($user, $lesson, $lesson->module)) {
             throw ValidationException::withMessages([
                 'lesson' => ['Cette leçon est verrouillée. Vous devez terminer la leçon précédente pour y accéder.']
             ]);
         }
     }
 
-    private function verifyAllLessonsCompleted(EliteUser $user, Chapter $chapter): void
+    private function verifyCourseSchedule(EliteUser $user, Lesson $lesson): void
     {
-        $totalLessons = Lesson::where('chapter_id', $chapter->id)
+        if (!$user->partner_id || !$lesson->module) {
+            return;
+        }
+
+        $schedule = CourseSchedule::where('partner_id', $user->partner_id)
+            ->where('pack_id', $lesson->module->pack_id)
+            ->where(fn ($query) => $query->where('lesson_id', $lesson->id)->orWhereNull('lesson_id'))
+            ->where('active', true)
+            ->latest('starts_at')
+            ->first();
+
+        if ($schedule && !$schedule->isOpen()) {
+            throw ValidationException::withMessages([
+                'lesson' => ['Ce cours sera disponible à partir du ' . $schedule->starts_at->format('d/m/Y H:i') . '.'],
+            ]);
+        }
+    }
+
+    private function verifyAllModuleLessonsCompleted(EliteUser $user, Module $module): void
+    {
+        $totalLessons = Lesson::where('module_id', $module->id)
             ->active()
             ->count();
 
         $completedLessons = LessonProgress::where('user_id', $user->id)
-            ->whereIn('lesson_id', Lesson::where('chapter_id', $chapter->id)->active()->pluck('id'))
+            ->whereIn('lesson_id', Lesson::where('module_id', $module->id)->active()->pluck('id'))
             ->where('completed', true)
             ->count();
 
         if ($completedLessons < $totalLessons) {
             throw ValidationException::withMessages([
-                'quiz' => ['Vous devez terminer toutes les leçons de ce chapitre avant d\'accéder au quiz.']
+                'quiz' => ['Vous devez terminer toutes les leçons de ce module avant d\'accéder au quiz.']
             ]);
         }
     }
 
-    private function getResultMessage(float $note, bool $reussi, string $action, Chapter $chapter): string
+    private function getResultMessage(float $note, bool $reussi, string $action, Module $module): string
     {
         if ($reussi) {
-            return "Excellent ! Vous avez obtenu {$note}/20. Le chapitre suivant est maintenant débloqué.";
+            return "Excellent ! Vous avez obtenu {$note}/20. Le module suivant est maintenant débloqué.";
         }
 
         if ($action === 'parrainage') {
-            return "Vous avez obtenu {$note}/20. Pour continuer, parrainez {$chapter->parrainages_requis} personnes ou recommencez le chapitre.";
+            $req = $module->parrainages_requis ?? 4;
+            return "Vous avez obtenu {$note}/20. Pour continuer, parrainez {$req} personnes ou recommencez le quiz.";
         }
 
-        return "Vous avez obtenu {$note}/20. La note minimale est de {$chapter->note_parrainage}/20. Révisez et réessayez !";
+        $min = $module->note_parrainage ?? 10;
+        return "Vous avez obtenu {$note}/20. La note minimale est de {$min}/20. Révisez et réessayez !";
+    }
+
+    // =========================================================================
+    // ALIASES POUR MAINTENIR LA COMPATIBILITÉ AVEC L'ANCIENNE STRUCTURE
+    // =========================================================================
+
+    public function getModuleChapters(EliteUser $user, int $moduleId): array
+    {
+        $data = $this->getModuleLessons($user, $moduleId);
+        return [
+            [
+                'id' => $data['module']['id'],
+                'nom' => $data['module']['nom'],
+                'description' => $data['module']['description'],
+                'is_unlocked' => $data['module']['is_unlocked'],
+                'is_completed' => $data['module']['is_completed'],
+                'completed_count' => $data['module']['completed_count'],
+                'lessons_count' => $data['module']['lessons_count'],
+                'has_access' => $data['module']['has_access'],
+                'note_passage' => $data['module']['note_passage'],
+                'note_parrainage' => $data['module']['note_parrainage'],
+                'parrainages_requis' => $data['module']['parrainages_requis'],
+                'lessons' => $data['lessons'],
+                'has_quiz' => $data['has_quiz'],
+                'quiz' => $data['quiz'],
+            ]
+        ];
+    }
+
+    public function getChapterLessons(EliteUser $user, int $chapterId): array
+    {
+        // Si chapterId correspond à un moduleId, renvoyer les leçons
+        $module = Module::find($chapterId);
+        if ($module) {
+            $data = $this->getModuleLessons($user, $moduleId = $chapterId);
+            return $data['lessons'];
+        }
+        return [];
+    }
+
+    public function getChapterQuiz(EliteUser $user, int $chapterId): array
+    {
+        return $this->getModuleQuiz($user, $chapterId);
+    }
+
+    public function unlockChapterByReferral(EliteUser $user, int $chapterId): array
+    {
+        return $this->unlockModuleByReferral($user, $chapterId);
     }
 }

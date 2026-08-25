@@ -509,6 +509,7 @@
                     <option value="transfert_recu" {{ request('type') == 'transfert_recu' ? 'selected' : '' }}>Transfert reçu</option>
                     <option value="code_caisse" {{ request('type') == 'code_caisse' ? 'selected' : '' }}>Code caisse</option>
                     <option value="bourse" {{ request('type') == 'bourse' ? 'selected' : '' }}>Bourse</option>
+                    <option value="bonus_admin" {{ request('type') == 'bonus_admin' ? 'selected' : '' }}>Bonus Admin</option>
                 </select>
             </div>
 
@@ -611,7 +612,7 @@
                                         'parrainage' => 'badge-parrainage',
                                         'transfert_envoi', 'transfert_recu' => 'badge-transfert',
                                         'code_caisse' => 'badge-code',
-                                        'bourse' => 'badge-bourse',
+                                        'bourse', 'bonus_admin' => 'badge-bourse',
                                         default => 'badge-depot'
                                     };
                                 @endphp

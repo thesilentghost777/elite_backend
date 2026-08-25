@@ -21,13 +21,26 @@ class ModuleController extends Controller
             'description' => 'nullable|string',
             'type' => 'required|in:theorique,pratique',
             'ordre' => 'required|integer|min:0',
+            'note_passage' => 'nullable|integer|min:1|max:20',
+            'note_parrainage' => 'nullable|integer|min:1|max:20',
+            'parrainages_requis' => 'nullable|integer|min:1',
             'active' => 'boolean',
         ]);
 
         $validated['active'] = $request->boolean('active');
+        $validated['note_passage'] = $validated['note_passage'] ?? 14;
+        $validated['note_parrainage'] = $validated['note_parrainage'] ?? 10;
+        $validated['parrainages_requis'] = $validated['parrainages_requis'] ?? 4;
+
         $pack->modules()->create($validated);
 
-        return redirect()->route('admin.packs.show', $pack)->with('success', 'Module créé');
+        return redirect()->route('admin.packs.show', $pack)->with('success', 'Module créé avec succès.');
+    }
+
+    public function show(Module $module)
+    {
+        $module->load(['pack', 'lessons', 'quizzes.questions.answers']);
+        return view('admin.modules.show', compact('module'));
     }
 
     public function edit(Module $module)
@@ -42,19 +55,22 @@ class ModuleController extends Controller
             'description' => 'nullable|string',
             'type' => 'required|in:theorique,pratique',
             'ordre' => 'required|integer|min:0',
+            'note_passage' => 'nullable|integer|min:1|max:20',
+            'note_parrainage' => 'nullable|integer|min:1|max:20',
+            'parrainages_requis' => 'nullable|integer|min:1',
             'active' => 'boolean',
         ]);
 
         $validated['active'] = $request->boolean('active');
         $module->update($validated);
 
-        return redirect()->route('admin.packs.show', $module->pack)->with('success', 'Module mis à jour');
+        return redirect()->route('admin.packs.show', $module->pack)->with('success', 'Module mis à jour avec succès.');
     }
 
     public function destroy(Module $module)
     {
         $pack = $module->pack;
         $module->delete();
-        return redirect()->route('admin.packs.show', $pack)->with('success', 'Module supprimé');
+        return redirect()->route('admin.packs.show', $pack)->with('success', 'Module supprimé avec succès.');
     }
 }

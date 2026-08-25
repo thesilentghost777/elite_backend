@@ -21,6 +21,7 @@ class Concours extends Model
         'conditions',
         'lien_inscription',
         'active',
+        'points_requis',
     ];
 
     protected $casts = [
@@ -28,6 +29,7 @@ class Concours extends Model
         'date_fin' => 'date',
         'date_limite_inscription' => 'date',
         'active' => 'boolean',
+        'points_requis' => 'integer',
     ];
 
     public function scopeActive($query)

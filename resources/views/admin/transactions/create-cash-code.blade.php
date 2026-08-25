@@ -361,7 +361,71 @@
                 Valeur du code
             </h2>
         </div>
-        <div class="form-body">
+            <!-- Tranches incluses (Les 5 Paiements Obligatoires) -->
+            <div class="form-group">
+                <label class="form-label">
+                    Tranches Spécifiées pour ce Code (Optionnel)
+                </label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem; background: var(--gray-50); padding: 1rem; border-radius: 8px; border: 1px solid var(--gray-200);">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cursor: pointer;">
+                        <input type="checkbox" name="tranches[]" value="1" class="tranche-checkbox" data-amount="10000" onchange="onTrancheChange()">
+                        <span><strong>Tranche 1:</strong> Inscription (10 000 F)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cursor: pointer;">
+                        <input type="checkbox" name="tranches[]" value="2" class="tranche-checkbox" data-amount="200000" onchange="onTrancheChange()">
+                        <span><strong>Tranche 2:</strong> Scolarité (200 000 F)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cursor: pointer;">
+                        <input type="checkbox" name="tranches[]" value="3" class="tranche-checkbox" data-amount="135000" onchange="onTrancheChange()">
+                        <span><strong>Tranche 3:</strong> Matière d'œuvre / Pack (135 000 F)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cursor: pointer;">
+                        <input type="checkbox" name="tranches[]" value="4" class="tranche-checkbox" data-amount="55000" onchange="onTrancheChange()">
+                        <span><strong>Tranche 4:</strong> Examen (55 000 F)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cursor: pointer;">
+                        <input type="checkbox" name="tranches[]" value="5" class="tranche-checkbox" data-amount="55000" onchange="onTrancheChange()">
+                        <span><strong>Tranche 5:</strong> Stage & Soutenance (55 000 F)</span>
+                    </label>
+                </div>
+                <div class="form-help">
+                    Sélectionnez les tranches que ce code caisse réglera automatiquement pour le candidat lors de son utilisation.
+                </div>
+            </div>
+
+            <!-- Pack / Formation Inclus -->
+            <div class="form-group">
+                <label class="form-label">
+                    Pack / Cours Inclus (Optionnel)
+                </label>
+                <select name="pack_id" id="packSelect" class="form-input" onchange="onPackChange()">
+                    <option value="">-- Aucun cours spécifique inclus --</option>
+                    @foreach($packs as $pack)
+                        <option value="{{ $pack->id }}" data-price="{{ $pack->prix_fcfa_effectif }}" {{ old('pack_id') == $pack->id ? 'selected' : '' }}>
+                            {{ $pack->nom }} ({{ number_format($pack->prix_fcfa_effectif) }} FCFA)
+                        </option>
+                    @endforeach
+                </select>
+                <div class="form-help">
+                    Si spécifié, ce cours/pack sera immédiatement débloqué lors de la saisie du code par l'apprenant.
+                </div>
+            </div>
+
+            <!-- École / Centre Partenaire -->
+            <div class="form-group">
+                <label class="form-label">
+                    Centre Partenaire Associé (Optionnel)
+                </label>
+                <select name="partner_id" class="form-input">
+                    <option value="">-- Aucun centre partenaire (Admin Général) --</option>
+                    @foreach($partners as $partner)
+                        <option value="{{ $partner->id }}" {{ old('partner_id') == $partner->id ? 'selected' : '' }}>
+                            {{ $partner->nom }} ({{ $partner->code_partenaire }})
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
             <div class="form-group">
                 <label class="form-label">
                     Montant en FCFA <span class="required">*</span>
@@ -371,8 +435,8 @@
                     name="montant_fcfa" 
                     id="montantFcfa"
                     class="form-input @error('montant_fcfa') error @enderror" 
-                    value="{{ old('montant_fcfa') }}" 
-                    min="100"
+                    value="{{ old('montant_fcfa', 10000) }}" 
+                    min="0"
                     step="100"
                     required
                     oninput="calculatePoints(this.value)"
@@ -380,12 +444,11 @@
                 
                 <!-- Montants rapides -->
                 <div class="quick-amounts">
-                    <button type="button" class="quick-amount-btn" onclick="setAmount(1000)">1 000 F</button>
-                    <button type="button" class="quick-amount-btn" onclick="setAmount(2500)">2 500 F</button>
-                    <button type="button" class="quick-amount-btn" onclick="setAmount(5000)">5 000 F</button>
-                    <button type="button" class="quick-amount-btn" onclick="setAmount(10000)">10 000 F</button>
-                    <button type="button" class="quick-amount-btn" onclick="setAmount(25000)">25 000 F</button>
-                    <button type="button" class="quick-amount-btn" onclick="setAmount(50000)">50 000 F</button>
+                    <button type="button" class="quick-amount-btn" onclick="setAmount(10000)">10 000 F (Inscription)</button>
+                    <button type="button" class="quick-amount-btn" onclick="setAmount(55000)">55 000 F (Examen/Stage)</button>
+                    <button type="button" class="quick-amount-btn" onclick="setAmount(135000)">135 000 F (Matière d'œuvre)</button>
+                    <button type="button" class="quick-amount-btn" onclick="setAmount(200000)">200 000 F (Scolarité)</button>
+                    <button type="button" class="quick-amount-btn" onclick="setAmount(455000)">455 000 F (Total 5 Tranches)</button>
                 </div>
 
                 <div class="calculation-info" id="calculationInfo" style="display: none;">
@@ -404,14 +467,14 @@
 
             <div class="form-group">
                 <label class="form-label">
-                    Assigner à un utilisateur (optionnel)
+                    Assigner à un apprenant spécifique (optionnel)
                 </label>
                 <div class="user-search">
                     <input 
                         type="text" 
                         id="userSearch"
                         class="form-input" 
-                        placeholder="Rechercher un utilisateur..."
+                        placeholder="Rechercher un apprenant par nom ou téléphone..."
                         autocomplete="off"
                     >
                     <input type="hidden" name="user_id" id="selectedUserId">
@@ -435,7 +498,7 @@
                 </div>
 
                 <div class="form-help">
-                    Si vous assignez ce code à un utilisateur, seul lui pourra l'utiliser
+                    Si assigné, seul cet apprenant pourra valider ce code. Laissez vide pour un code utilisable par tout apprenant.
                 </div>
             </div>
 
@@ -563,9 +626,35 @@
         }
     });
 
+    function onTrancheChange() {
+        let total = 0;
+        document.querySelectorAll('.tranche-checkbox:checked').forEach(cb => {
+            total += parseFloat(cb.dataset.amount || 0);
+        });
+        if (total > 0) {
+            document.getElementById('montantFcfa').value = total;
+            calculatePoints(total);
+        }
+    }
+
+    function onPackChange() {
+        const packSelect = document.getElementById('packSelect');
+        const selectedOption = packSelect.options[packSelect.selectedIndex];
+        const price = selectedOption.dataset.price;
+        if (price && parseFloat(price) > 0) {
+            const tranche3 = document.querySelector('.tranche-checkbox[value="3"]');
+            if (tranche3) {
+                tranche3.checked = true;
+                onTrancheChange();
+            }
+        }
+    }
+
     // Initialiser avec une valeur par défaut si existe
     @if(old('montant_fcfa'))
         calculatePoints({{ old('montant_fcfa') }});
+    @else
+        calculatePoints(10000);
     @endif
 </script>
 @endpush

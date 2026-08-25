@@ -21,6 +21,7 @@ class JobOffer extends Model
         'contact_email',
         'contact_telephone',
         'active',
+        'points_requis',
     ];
 
     protected $casts = [
@@ -28,6 +29,7 @@ class JobOffer extends Model
         'salaire_max' => 'decimal:2',
         'date_limite' => 'date',
         'active' => 'boolean',
+        'points_requis' => 'integer',
     ];
 
     public function scopeActive($query)

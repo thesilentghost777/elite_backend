@@ -112,6 +112,14 @@
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
 
+    .error-message {
+        color: #ef4444;
+        font-size: 0.813rem;
+        margin-top: 0.375rem;
+        display: block;
+        font-weight: 500;
+    }
+
     .checkbox-group {
         display: flex;
         flex-direction: column;
@@ -370,9 +378,16 @@
                            class="form-input @error('nom') error @enderror"
                            placeholder="Ex: Secrétariat Bureautique"
                            required>
+                    @error('nom') <div class="error-message">{{ $message }}</div> @enderror
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="form-group">
+                        <label for="prix_fcfa" class="form-label">Prix réel (FCFA)</label>
+                        <input type="number" name="prix_fcfa" id="prix_fcfa" min="0" step="0.01" value="{{ old('prix_fcfa') }}" class="form-input @error('prix_fcfa') error @enderror" placeholder="Ex: 135000">
+                        @error('prix_fcfa') <div class="error-message">{{ $message }}</div> @enderror
+                    </div>
+
                     <div class="form-group">
                         <label for="category_id" class="form-label">
                             Catégorie <span class="required">*</span>
@@ -388,6 +403,7 @@
                             </option>
                             @endforeach
                         </select>
+                        @error('category_id') <div class="error-message">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="form-group">
@@ -405,6 +421,7 @@
                             <option value="Licence" {{ old('niveau_requis') == 'Licence' ? 'selected' : '' }}>Licence</option>
                             <option value="Master" {{ old('niveau_requis') == 'Master' ? 'selected' : '' }}>Master</option>
                         </select>
+                        @error('niveau_requis') <div class="error-message">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="form-group">
@@ -418,6 +435,7 @@
                                min="1"
                                class="form-input @error('prix_points') error @enderror"
                                required>
+                        @error('prix_points') <div class="error-message">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="form-group">
@@ -445,6 +463,7 @@
                               rows="4"
                               class="form-textarea @error('description') error @enderror"
                               placeholder="Décrivez le contenu du pack...">{{ old('description') }}</textarea>
+                    @error('description') <div class="error-message">{{ $message }}</div> @enderror
                 </div>
             </div>
         </div>
@@ -473,16 +492,17 @@
                                    name="durees_disponibles[]" 
                                    value="{{ $duree }}"
                                    id="duree_{{ $loop->index }}"
-                                   {{ in_array($duree, old('durees_disponibles', [])) ? 'checked' : '' }}>
+                                   {{ in_array($duree, (array) old('durees_disponibles', [])) ? 'checked' : '' }}>
                             <label for="duree_{{ $loop->index }}">{{ $duree }}</label>
                         </div>
                         @endforeach
                     </div>
+                    @error('durees_disponibles') <div class="error-message">{{ $message }}</div> @enderror
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">
-                        Diplômes Possibles <span class="required">*</span>
+                        Diplômes Possibles (Optionnel)
                     </label>
                     <div class="checkbox-group">
                         @foreach(['AQP', 'CQP', 'DQP', 'BTS', 'Licence Professionnelle'] as $diplome)
@@ -491,11 +511,12 @@
                                    name="diplomes_possibles[]" 
                                    value="{{ $diplome }}"
                                    id="diplome_{{ $loop->index }}"
-                                   {{ in_array($diplome, old('diplomes_possibles', [])) ? 'checked' : '' }}>
+                                   {{ in_array($diplome, (array) old('diplomes_possibles', [])) ? 'checked' : '' }}>
                             <label for="diplome_{{ $loop->index }}">{{ $diplome }}</label>
                         </div>
                         @endforeach
                     </div>
+                    @error('diplomes_possibles') <div class="error-message">{{ $message }}</div> @enderror
                 </div>
             </div>
         </div>
@@ -550,7 +571,7 @@
                                name="profiles[]" 
                                value="{{ $profile->id }}"
                                id="profile_{{ $profile->id }}"
-                               {{ in_array($profile->id, old('profiles', [])) ? 'checked' : '' }}>
+                               {{ in_array($profile->id, (array) old('profiles', [])) ? 'checked' : '' }}>
                         <label for="profile_{{ $profile->id }}">{{ $profile->nom }}</label>
                     </div>
                     @endforeach

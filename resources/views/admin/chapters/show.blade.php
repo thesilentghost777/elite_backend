@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Détails du Chapitre')
+@section('title', 'Détails du Chapitre : ' . $chapter->nom)
 
 @section('content')
 <div class="container-fluid py-4">
@@ -17,6 +17,13 @@
     @if(session('success'))
     <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
         <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    @endif
+
+    @if(session('warning'))
+    <div class="alert alert-warning alert-dismissible fade show shadow-sm mb-4" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>{{ session('warning') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     @endif
@@ -46,14 +53,18 @@
                                         @endif
                                     </div>
                                     <p class="mb-2 opacity-90">{{ $chapter->description }}</p>
-                                    <div class="d-flex gap-3">
+                                    <div class="d-flex gap-3 flex-wrap">
                                         <span>
                                             <i class="fas fa-sort-numeric-up me-2"></i>
                                             Ordre: {{ $chapter->ordre }}
                                         </span>
                                         <span>
                                             <i class="fas fa-graduation-cap me-2"></i>
-                                            Note de passage: {{ $chapter->note_passage }}/20
+                                            Note de passage: {{ $chapter->note_passage }}/20 (Palier 7/10)
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-layer-group me-2"></i>
+                                            Pédagogie : Architecture 3 Parties & Quiz 10 Questions
                                         </span>
                                     </div>
                                 </div>
@@ -85,14 +96,15 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header bg-white border-bottom py-3">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 text-primary fw-bold">
-                            <i class="fas fa-play-circle me-2"></i>Leçons
-                        </h5>
-                        <button class="btn btn-success btn-sm" 
-                                data-bs-toggle="modal" 
-                                data-bs-target="#addLessonModal">
-                            <i class="fas fa-plus me-1"></i>Ajouter
-                        </button>
+                        <div>
+                            <h5 class="mb-0 text-primary fw-bold">
+                                <i class="fas fa-play-circle me-2"></i>Leçons (3 Parties E-Learning)
+                            </h5>
+                            <small class="text-muted">1. Théorie &bull; 2. Vidéo Explication &bull; 3. Vidéo Pratique</small>
+                        </div>
+                        <a href="{{ route('admin.lessons.create', $chapter) }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-plus me-1"></i>Ajouter une leçon
+                        </a>
                     </div>
                 </div>
                 <div class="card-body">
@@ -101,57 +113,72 @@
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="flex-grow-1">
                                 <div class="d-flex align-items-center mb-2">
-                                    <span class="badge bg-primary me-2">{{ $lesson->ordre }}</span>
+                                    <span class="badge bg-primary me-2">#{{ $lesson->ordre }}</span>
                                     <h6 class="mb-0 fw-bold">{{ $lesson->titre }}</h6>
                                     @if($lesson->active)
                                     <span class="badge bg-success-subtle text-success ms-2">
-                                        <i class="fas fa-check"></i>
+                                        <i class="fas fa-check"></i> Actif
+                                    </span>
+                                    @else
+                                    <span class="badge bg-danger-subtle text-danger ms-2">
+                                        Inactif
                                     </span>
                                     @endif
                                 </div>
+
+                                <div class="d-flex gap-2 flex-wrap mb-2">
+                                    @if($lesson->contenu_texte || $lesson->url_web)
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                        <i class="fas fa-book-open me-1"></i>Partie 1: Théorie
+                                    </span>
+                                    @endif
+
+                                    @if($lesson->url_video_explication || $lesson->url_video)
+                                    <span class="badge bg-purple-subtle text-purple border border-purple-subtle" style="background-color: #ede9fe; color: #6d28d9;">
+                                        <i class="fas fa-video me-1"></i>Partie 2: Explication
+                                    </span>
+                                    @endif
+
+                                    @if($lesson->url_video_pratique)
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                        <i class="fas fa-laptop-code me-1"></i>Partie 3: Pratique
+                                    </span>
+                                    @endif
+                                </div>
+
                                 <div class="d-flex gap-3 small text-muted">
                                     <span>
                                         <i class="fas fa-clock me-1"></i>
                                         {{ $lesson->duree_minutes }} min
                                     </span>
-                                    @if($lesson->url_video)
                                     <span>
-                                        <i class="fas fa-video me-1"></i>Vidéo
+                                        <i class="fas fa-users me-1"></i>
+                                        {{ $lesson->progress->count() }} apprenant(s)
                                     </span>
-                                    @endif
-                                    @if($lesson->url_web)
-                                    <span>
-                                        <i class="fas fa-globe me-1"></i>Web
-                                    </span>
-                                    @endif
-                                    @if($lesson->contenu_texte)
-                                    <span>
-                                        <i class="fas fa-file-alt me-1"></i>Texte
-                                    </span>
-                                    @endif
                                 </div>
                             </div>
+
                             <div class="btn-group btn-group-sm" role="group">
-                                <button class="btn btn-outline-primary" 
-                                        onclick="editLesson({{ $lesson->id }})">
+                                <a href="{{ route('admin.lessons.edit', $lesson) }}" class="btn btn-outline-primary" title="Modifier la leçon">
                                     <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-outline-danger" 
-                                        onclick="deleteLesson({{ $lesson->id }})">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                </a>
+                                <form action="{{ route('admin.lessons.destroy', $lesson) }}" method="POST" onsubmit="return confirm('Supprimer cette leçon ?');" style="display: inline;">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-outline-danger" title="Supprimer la leçon">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>
                     @empty
                     <div class="text-center py-5">
                         <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
-                        <p class="text-muted">Aucune leçon pour ce chapitre</p>
-                        <button class="btn btn-primary" 
-                                data-bs-toggle="modal" 
-                                data-bs-target="#addLessonModal">
-                            <i class="fas fa-plus me-2"></i>Créer la première leçon
-                        </button>
+                        <p class="text-muted">Aucune leçon enregistrée pour ce chapitre</p>
+                        <a href="{{ route('admin.lessons.create', $chapter) }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Créer la première leçon (3 Parties)
+                        </a>
                     </div>
                     @endforelse
                 </div>
@@ -163,107 +190,108 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header bg-white border-bottom py-3">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 text-success fw-bold">
-                            <i class="fas fa-clipboard-question me-2"></i>Quiz
-                        </h5>
+                        <div>
+                            <h5 class="mb-0 text-success fw-bold">
+                                <i class="fas fa-clipboard-question me-2"></i>Quiz & Vrais Prix (1M FCFA)
+                            </h5>
+                            <small class="text-muted">Mécanique "Qui veut gagner des millions" (10 questions)</small>
+                        </div>
                         @if(!$chapter->quiz)
-                        <button class="btn btn-success btn-sm" 
-                                data-bs-toggle="modal" 
-                                data-bs-target="#addQuizModal">
-                            <i class="fas fa-plus me-1"></i>Ajouter
-                        </button>
+                        <a href="{{ route('admin.quizzes.create', $chapter) }}" class="btn btn-success btn-sm">
+                            <i class="fas fa-plus me-1"></i>Créer Quiz
+                        </a>
                         @endif
                     </div>
                 </div>
                 <div class="card-body">
-                    @if($chapter->quiz)
+                    @php
+                        $quiz = $chapter->quiz ?? $chapter->quizzes->first();
+                    @endphp
+
+                    @if($quiz)
+                    @php
+                        $qCount = $quiz->questions->count();
+                        $isComplete = $qCount === 10;
+                    @endphp
                     <div class="quiz-details">
                         <div class="d-flex justify-content-between align-items-start mb-3">
                             <div>
-                                <h5 class="fw-bold mb-2">{{ $chapter->quiz->titre }}</h5>
-                                <p class="text-muted mb-0">{{ $chapter->quiz->description }}</p>
+                                <h5 class="fw-bold mb-1">{{ $quiz->titre }}</h5>
+                                <p class="text-muted mb-2 small">{{ $quiz->description ?? 'Évaluation de fin de chapitre.' }}</p>
+                                
+                                @if($isComplete)
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle me-1"></i>Complet (10/10 questions) - Prêt
+                                    </span>
+                                @else
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>Incomplet ({{ $qCount }}/10 questions) - Bloquant
+                                    </span>
+                                @endif
                             </div>
                             <div class="btn-group btn-group-sm" role="group">
-                                <button class="btn btn-outline-primary">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-outline-danger">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <a href="{{ route('admin.quizzes.edit', $quiz) }}" class="btn btn-outline-primary" title="Modifier les paramètres">
+                                    <i class="fas fa-cog"></i>
+                                </a>
+                                <form action="{{ route('admin.quizzes.destroy', $quiz) }}" method="POST" onsubmit="return confirm('Supprimer ce quiz ?');" style="display: inline;">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-outline-danger" title="Supprimer le quiz">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
                             </div>
                         </div>
 
-                        <div class="row g-3 mb-4">
+                        <div class="row g-3 mb-3">
                             <div class="col-6">
                                 <div class="stat-card bg-primary-subtle text-primary p-3 rounded">
                                     <div class="d-flex align-items-center">
-                                        <i class="fas fa-question-circle fa-2x me-3"></i>
+                                        <i class="fas fa-list-ol fa-2x me-3"></i>
                                         <div>
-                                            <div class="fs-4 fw-bold">{{ $chapter->quiz->questions->count() }}</div>
-                                            <small>Questions</small>
+                                            <div class="fs-4 fw-bold">{{ $qCount }}/10</div>
+                                            <small>Questions configurées</small>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-6">
-                                <div class="stat-card bg-success-subtle text-success p-3 rounded">
+                                <div class="stat-card bg-warning-subtle text-warning p-3 rounded">
                                     <div class="d-flex align-items-center">
-                                        <i class="fas fa-clock fa-2x me-3"></i>
+                                        <i class="fas fa-trophy fa-2x me-3 text-warning"></i>
                                         <div>
-                                            <div class="fs-4 fw-bold">{{ $chapter->quiz->duree_minutes }}</div>
-                                            <small>Minutes</small>
+                                            <div class="fs-5 fw-bold text-dark">1 000 000 F</div>
+                                            <small class="text-muted">Cagnotte Maximale</small>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Questions List -->
-                        <div class="questions-list">
-                            <h6 class="text-muted mb-3 fw-bold">Questions du Quiz</h6>
-                            @foreach($chapter->quiz->questions as $question)
-                            <div class="question-item p-3 mb-2 border rounded">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div class="flex-grow-1">
-                                        <div class="d-flex align-items-center mb-2">
-                                            <span class="badge bg-secondary me-2">Q{{ $question->ordre }}</span>
-                                            <span class="badge bg-info-subtle text-info">{{ $question->type }}</span>
-                                            <span class="badge bg-warning-subtle text-warning ms-2">
-                                                {{ $question->points }} pts
-                                            </span>
-                                        </div>
-                                        <p class="mb-2 small">{{ Str::limit($question->enonce, 100) }}</p>
-                                        <small class="text-muted">
-                                            <i class="fas fa-list me-1"></i>
-                                            {{ $question->answers->count() }} réponse(s)
-                                        </small>
-                                    </div>
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <button class="btn btn-sm btn-outline-primary">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </div>
+                        <!-- Assistant 10 Questions Alert & Link -->
+                        <div class="p-3 mb-3 rounded border {{ $isComplete ? 'bg-light' : 'bg-warning-subtle border-warning' }}">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <strong class="d-block {{ $isComplete ? 'text-success' : 'text-dark' }}">
+                                        <i class="fas {{ $isComplete ? 'fa-check-circle text-success' : 'fa-lock text-warning' }} me-1"></i>
+                                        {{ $isComplete ? 'Quiz validé pour les étudiants' : 'Accès étudiant bloqué (10 questions requises)' }}
+                                    </strong>
+                                    <small class="text-muted">Palier 7/10 requis pour débloquer le chapitre suivant.</small>
                                 </div>
                             </div>
-                            @endforeach
                         </div>
 
-                        <button class="btn btn-primary btn-sm w-100 mt-3">
-                            <i class="fas fa-plus me-2"></i>Ajouter une Question
-                        </button>
+                        <a href="{{ route('admin.quizzes.show', $quiz) }}" class="btn btn-primary w-100 py-2">
+                            <i class="fas fa-magic me-2"></i>Ouvrir l'Assistant 10 Questions ("Qui veut gagner des millions")
+                        </a>
                     </div>
                     @else
                     <div class="text-center py-5">
                         <i class="fas fa-clipboard-question fa-3x text-muted mb-3"></i>
-                        <p class="text-muted">Aucun quiz pour ce chapitre</p>
-                        <button class="btn btn-success" 
-                                data-bs-toggle="modal" 
-                                data-bs-target="#addQuizModal">
-                            <i class="fas fa-plus me-2"></i>Créer le quiz
-                        </button>
+                        <p class="text-muted">Aucun quiz configuré pour ce chapitre</p>
+                        <a href="{{ route('admin.quizzes.create', $chapter) }}" class="btn btn-success">
+                            <i class="fas fa-plus me-2"></i>Créer le Quiz (Format 10 Questions)
+                        </a>
                     </div>
                     @endif
                 </div>
@@ -293,7 +321,7 @@
                             <div class="stat-box p-4 bg-success-subtle rounded">
                                 <i class="fas fa-clipboard-question fa-2x text-success mb-2"></i>
                                 <h3 class="fw-bold text-success mb-1">
-                                    {{ $chapter->quiz ? $chapter->quiz->questions->count() : 0 }}
+                                    {{ $chapter->quiz ? $chapter->quiz->questions->count() : ($chapter->quizzes->first() ? $chapter->quizzes->first()->questions->count() : 0) }}/10
                                 </h3>
                                 <p class="text-muted mb-0 small">Questions Quiz</p>
                             </div>
@@ -311,7 +339,7 @@
                             <div class="stat-box p-4 bg-warning-subtle rounded">
                                 <i class="fas fa-graduation-cap fa-2x text-warning mb-2"></i>
                                 <h3 class="fw-bold text-warning mb-1">{{ $chapter->note_passage }}/20</h3>
-                                <p class="text-muted mb-0 small">Note de passage</p>
+                                <p class="text-muted mb-0 small">Note de passage (Palier 7/10)</p>
                             </div>
                         </div>
                     </div>
@@ -350,7 +378,7 @@
 
 <style>
     .bg-gradient-chapter {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
     }
     
     .chapter-icon {
@@ -370,8 +398,8 @@
     
     .lesson-item:hover,
     .question-item:hover {
-        background-color: rgba(102, 126, 234, 0.05);
-        border-color: #667eea !important;
+        background-color: rgba(30, 64, 175, 0.04);
+        border-color: #3b82f6 !important;
     }
     
     .stat-box {

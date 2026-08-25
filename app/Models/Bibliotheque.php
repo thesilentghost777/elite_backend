@@ -15,10 +15,12 @@ class Bibliotheque extends Model
         'titre', 'auteur', 'description', 'categorie',
         'fichier_pdf', 'cover_image', 'nombre_pages',
         'vues', 'telechargements', 'active',
+        'points_requis',
     ];
 
     protected $casts = [
         'active' => 'boolean',
+        'points_requis' => 'integer',
     ];
 
     public function scopeActive($query)

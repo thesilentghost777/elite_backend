@@ -147,8 +147,8 @@
                                 </svg>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-600">Chapitres</p>
-                                <p class="text-2xl font-bold text-gray-900">{{ $module->chapters->count() }}</p>
+                                <p class="text-sm text-gray-600">Leçons (Cours)</p>
+                                <p class="text-2xl font-bold text-gray-900">{{ $module->lessons->count() }}</p>
                             </div>
                         </div>
                     </div>
@@ -161,8 +161,8 @@
                                 </svg>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-600">Leçons</p>
-                                <p class="text-2xl font-bold text-gray-900">{{ $module->chapters->sum(fn($c) => $c->lessons->count()) }}</p>
+                                <p class="text-sm text-gray-600">Durée Totale</p>
+                                <p class="text-2xl font-bold text-gray-900">{{ $module->lessons->sum('duree_minutes') }} min</p>
                             </div>
                         </div>
                     </div>

@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             CareerProfileSeeder::class,
             ProfileMatchingSeeder::class,
             PackSeeder::class,
+            DigitalCourseSeeder::class,
             ProfilePackSeeder::class,
             RoadmapSeeder::class,
             

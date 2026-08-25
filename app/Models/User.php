@@ -20,6 +20,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'role',
         'password',
     ];
 
@@ -32,6 +33,11 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    public function isCfpamSuperUser(): bool
+    {
+        return in_array($this->role, ['cfpam_super_user', 'super_admin'], true);
+    }
 
     /**
      * Get the attributes that should be cast.

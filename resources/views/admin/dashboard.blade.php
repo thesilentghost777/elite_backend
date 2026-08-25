@@ -415,6 +415,96 @@
     </div>
 </div>
 
+<!-- Consolidation Multi-Centres CFPAM & Partenaires -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header">
+        <div>
+            <h2 class="card-title">Supervision Multi-Centres CFPAM & Partenaires</h2>
+            <p style="font-size: 0.8rem; color: var(--gray-600); margin-top: 0.25rem;">Consolidation des centres agréés, cohortes d'apprenants et recouvrement des 5 tranches.</p>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="{{ route('admin.comptabilite.index') }}" class="btn btn-secondary" style="font-size: 0.875rem;">
+                <i class="fas fa-file-invoice-dollar" style="margin-right: 0.35rem;"></i> Comptabilité & Rapports
+            </a>
+            <a href="{{ route('admin.partners.index') }}" class="btn btn-primary" style="font-size: 0.875rem;">
+                Gérer tous les centres
+            </a>
+        </div>
+    </div>
+
+    <!-- Mini KPI Partenaires -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 1.25rem; background: var(--gray-50); border-radius: 8px; margin: 0 1.5rem 1.5rem;">
+        <div>
+            <div style="font-size: 0.75rem; color: var(--gray-600); text-transform: uppercase; font-weight: 600;">Centres Agréés</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--gray-900);">{{ $stats['total_partners'] }}</div>
+            <div style="font-size: 0.75rem; color: var(--success-green);">{{ $stats['active_partners'] }} actifs</div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; color: var(--gray-600); text-transform: uppercase; font-weight: 600;">Apprenants Centres</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-blue);">{{ $stats['total_partner_learners'] }}</div>
+            <div style="font-size: 0.75rem; color: var(--gray-600);">{{ $stats['partner_active_learners'] }} en cours</div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; color: var(--gray-600); text-transform: uppercase; font-weight: 600;">Tranches Encaissées</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--success-green);">{{ number_format($stats['partner_installments_collected'], 0, ',', ' ') }} F</div>
+            <div style="font-size: 0.75rem; color: var(--gray-600);">Recouvrement 5 tranches</div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; color: var(--gray-600); text-transform: uppercase; font-weight: 600;">Tranches En Retard</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--danger);">{{ number_format($stats['partner_installments_late'], 0, ',', ' ') }} F</div>
+            <div style="font-size: 0.75rem; color: var(--gray-600);">{{ $stats['partner_failed_learners'] }} apprenant(s) en retard</div>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Code Centre</th>
+                    <th>Nom du Centre</th>
+                    <th>Apprenants</th>
+                    <th>Actifs</th>
+                    <th>En Retard</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($partnersSummary as $ps)
+                <tr>
+                    <td><strong style="color: var(--primary-blue);">{{ $ps->code_partenaire ?: '-' }}</strong></td>
+                    <td>
+                        <div style="font-weight: 600; color: var(--gray-900);">{{ $ps->nom }}</div>
+                        <div style="font-size: 0.75rem; color: var(--gray-500);">{{ $ps->email }}</div>
+                    </td>
+                    <td><span class="badge badge-info">{{ $ps->learners_count }}</span></td>
+                    <td><span class="badge badge-success">{{ $ps->active_learners_count }}</span></td>
+                    <td>
+                        @if($ps->failed_learners_count > 0)
+                            <span class="badge badge-warning" style="background:#fee2e2;color:#991b1b;">{{ $ps->failed_learners_count }}</span>
+                        @else
+                            <span style="color: var(--gray-500); font-size: 0.8rem;">0</span>
+                        @endif
+                    </td>
+                    <td>
+                        @if($ps->active)
+                            <span class="badge badge-success">Actif</span>
+                        @else
+                            <span class="badge badge-warning" style="background:#fee2e2;color:#991b1b;">Inactif</span>
+                        @endif
+                    </td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="6" style="text-align: center; color: var(--gray-600); padding: 2rem;">
+                        Aucun centre partenaire enregistré
+                    </td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <!-- Packs populaires -->
 <div class="card">
     <div class="card-header">

@@ -1,319 +1,431 @@
-@extends('layouts.admin')
+@extends('admin.layouts.app')
 
-@section('title', 'Modifier la Leçon')
+@section('title', 'Modifier la Leçon : ' . $lesson->titre)
+
+@php
+    $currentModule = $lesson->module ?? ($lesson->chapter?->module ?? null);
+    $pack = $currentModule?->pack;
+@endphp
+
+@section('breadcrumb')
+    <a href="{{ route('admin.dashboard') }}">Tableau de bord</a>
+    <span>/</span>
+    @if($pack)
+        <a href="{{ route('admin.packs.show', $pack) }}">{{ $pack->nom }}</a>
+        <span>/</span>
+    @endif
+    @if($currentModule)
+        <a href="{{ route('admin.modules.show', $currentModule) }}">{{ $currentModule->nom }}</a>
+        <span>/</span>
+    @endif
+    <span>Modifier : {{ $lesson->titre }}</span>
+@endsection
 
 @section('content')
-<div class="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 py-8 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-4xl mx-auto">
-        <!-- En-tête -->
-        <div class="mb-6">
-            <a href="{{ route('admin.chapters.show', $lesson->chapter) }}" 
-               class="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors duration-200 mb-4">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                </svg>
-                Retour au chapitre
+<style>
+    .lesson-form-container {
+        max-width: 960px;
+        margin: 0 auto;
+    }
+
+    .chapter-banner {
+        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+        border-radius: 16px;
+        padding: 1.75rem;
+        color: white;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 14px rgba(30, 64, 175, 0.2);
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+    }
+
+    .chapter-icon-badge {
+        width: 56px;
+        height: 56px;
+        border-radius: 12px;
+        background-color: rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+
+    .course-parts-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+
+    .part-card {
+        border-radius: 14px;
+        border: 2px solid #e2e8f0;
+        background: #ffffff;
+        padding: 1.5rem;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+
+    .part-card.part-1 {
+        border-left: 6px solid #3b82f6;
+    }
+
+    .part-card.part-2 {
+        border-left: 6px solid #8b5cf6;
+    }
+
+    .part-card.part-3 {
+        border-left: 6px solid #10b981;
+    }
+
+    .part-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .part-title-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .part-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .part-badge.blue {
+        background-color: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .part-badge.purple {
+        background-color: #ede9fe;
+        color: #6d28d9;
+    }
+
+    .part-badge.green {
+        background-color: #d1fae5;
+        color: #047857;
+    }
+
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-pill {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid #e2e8f0;
+        text-align: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .stat-pill-val {
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #1e40af;
+        line-height: 1;
+        margin-bottom: 0.35rem;
+    }
+
+    .stat-pill-lbl {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        font-weight: 600;
+    }
+
+    .media-preview-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.78rem;
+        background-color: #f1f5f9;
+        color: #334155;
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        margin-top: 0.4rem;
+    }
+</style>
+
+<div class="lesson-form-container">
+    <!-- Module Context Banner -->
+    <div class="chapter-banner">
+        <div class="chapter-icon-badge">
+            <i class="fas fa-edit"></i>
+        </div>
+        <div style="flex: 1;">
+            <div style="font-size: 0.875rem; opacity: 0.85; margin-bottom: 0.25rem;">
+                Pack : <strong>{{ $pack?->nom }}</strong> &bull; Module : <strong>{{ $currentModule?->nom }}</strong>
+            </div>
+            <h2 style="font-size: 1.35rem; font-weight: 700; margin: 0;">{{ $lesson->titre }}</h2>
+            <div style="font-size: 0.85rem; opacity: 0.9; margin-top: 0.25rem;">
+                Position #{{ $lesson->ordre }} dans le module
+            </div>
+        </div>
+        @if($currentModule)
+            <a href="{{ route('admin.modules.show', $currentModule) }}" class="btn btn-secondary" style="background: rgba(255,255,255,0.2); border: none; color: white;">
+                <i class="fas fa-arrow-left" style="margin-right: 0.5rem;"></i> Retour
             </a>
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <div class="flex items-center mb-2">
-                    <div class="bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-lg p-3 mr-4">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h1 class="text-3xl font-bold text-gray-900">Modifier la Leçon</h1>
-                        <p class="mt-1 text-gray-600">{{ $lesson->titre }}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        @if($errors->any())
-        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded-lg shadow-md">
-            <div class="flex">
-                <div class="flex-shrink-0">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                    </svg>
-                </div>
-                <div class="ml-3">
-                    <h3 class="text-sm font-medium">Il y a des erreurs dans le formulaire :</h3>
-                    <ul class="mt-2 text-sm list-disc list-inside">
-                        @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            </div>
-        </div>
         @endif
+    </div>
 
-        <!-- Formulaire -->
-        <form action="{{ route('admin.lessons.update', $lesson) }}" method="POST" class="space-y-6">
-            @csrf
-            @method('PUT')
+    <!-- Stats Quick Cards -->
+    <div class="stats-row">
+        <div class="stat-pill">
+            <div class="stat-pill-val">{{ $lesson->duree_minutes }} min</div>
+            <div class="stat-pill-lbl">Durée estimée</div>
+        </div>
+        <div class="stat-pill">
+            <div class="stat-pill-val" style="color: #8b5cf6;">{{ $lesson->progress->count() }}</div>
+            <div class="stat-pill-lbl">Apprenants engagés</div>
+        </div>
+        <div class="stat-pill">
+            <div class="stat-pill-val" style="color: #10b981;">{{ $lesson->progress->where('completed', true)->count() }}</div>
+            <div class="stat-pill-lbl">Apprenants ayant terminé</div>
+        </div>
+    </div>
 
-            <!-- Informations de base -->
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                    <span class="bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">1</span>
-                    Informations de Base
-                </h2>
+    <form action="{{ route('admin.lessons.update', $lesson) }}" method="POST">
+        @csrf
+        @method('PUT')
 
-                <div class="space-y-6">
-                    <div>
-                        <label for="titre" class="block text-sm font-semibold text-gray-700 mb-2">
-                            Titre de la Leçon <span class="text-red-500">*</span>
-                        </label>
+        <div class="form-card" style="margin-bottom: 2rem;">
+            <!-- Paramètres Généraux -->
+            <div class="form-section">
+                <h3 class="form-section-title">
+                    <div class="section-icon">
+                        <i class="fas fa-info-circle"></i>
+                    </div>
+                    1. Paramètres de la Leçon
+                </h3>
+
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label class="form-label">Titre de la leçon <span class="required">*</span></label>
                         <input type="text" 
                                name="titre" 
-                               id="titre" 
-                               value="{{ old('titre', $lesson->titre) }}"
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                               placeholder="Ex: Les outils de bureautique essentiels"
+                               class="form-control @error('titre') error @enderror" 
+                               value="{{ old('titre', $lesson->titre) }}" 
                                required>
-                        <p class="mt-1 text-sm text-gray-500">Donnez un titre clair et descriptif</p>
+                        @error('titre')
+                            <div class="error-message">{{ $message }}</div>
+                        @enderror
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label for="duree_minutes" class="block text-sm font-semibold text-gray-700 mb-2">
-                                Durée (Minutes) <span class="text-red-500">*</span>
-                            </label>
-                            <div class="relative">
-                                <input type="number" 
-                                       name="duree_minutes" 
-                                       id="duree_minutes" 
-                                       value="{{ old('duree_minutes', $lesson->duree_minutes) }}"
-                                       min="1"
-                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                                       required>
-                                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
+                    <div class="form-group">
+                        <label class="form-label">Durée estimée (minutes) <span class="required">*</span></label>
+                        <input type="number" 
+                               name="duree_minutes" 
+                               class="form-control @error('duree_minutes') error @enderror" 
+                               value="{{ old('duree_minutes', $lesson->duree_minutes) }}" 
+                               min="1" 
+                               required>
+                        <div class="form-help">Temps global pour les 3 parties</div>
+                        @error('duree_minutes')
+                            <div class="error-message">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Ordre d'affichage <span class="required">*</span></label>
+                        <input type="number" 
+                               name="ordre" 
+                               class="form-control @error('ordre') error @enderror" 
+                               value="{{ old('ordre', $lesson->ordre) }}" 
+                               min="0" 
+                               required>
+                        <div class="form-help">Ordre de déroulement dans le chapitre</div>
+                        @error('ordre')
+                            <div class="error-message">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+            </div>
+
+            <!-- Architecture E-Learning en 3 Parties -->
+            <div class="form-section" style="border-top: 1px solid #e2e8f0; padding-top: 2rem;">
+                <h3 class="form-section-title">
+                    <div class="section-icon" style="background-color: #ede9fe; color: #7c3aed;">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    2. Contenu E-Learning en 3 Parties
+                </h3>
+
+                <div class="course-parts-grid">
+                    <!-- PARTIE 1 : Théorie & Support Écrit -->
+                    <div class="part-card part-1">
+                        <div class="part-header">
+                            <div class="part-title-wrapper">
+                                <span class="part-badge blue">Partie 1</span>
+                                <h4 style="margin: 0; font-size: 1.1rem; color: #1e293b; font-weight: 700;">
+                                    <i class="fas fa-book-open" style="color: #3b82f6; margin-right: 0.35rem;"></i>
+                                    Théorie & Support Écrit
+                                </h4>
+                            </div>
+                            <span style="font-size: 0.8rem; color: #64748b;">Texte Markdown & Ressource Web</span>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 1.25rem;">
+                            <label class="form-label">Contenu Théorique / Cours Écrit</label>
+                            <textarea name="contenu_texte" 
+                                      rows="8" 
+                                      class="form-control @error('contenu_texte') error @enderror" 
+                                      placeholder="Rédigez le cours théorique ici (Markdown supporté)...">{{ old('contenu_texte', $lesson->contenu_texte) }}</textarea>
+                            <div class="form-help">Base théorique lue par l'étudiant dans l'application mobile et web.</div>
+                            @error('contenu_texte')
+                                <div class="error-message">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Lien Ressource Web / Documentation externe (URL Web)</label>
+                            <input type="url" 
+                                   name="url_web" 
+                                   class="form-control @error('url_web') error @enderror" 
+                                   value="{{ old('url_web', $lesson->url_web) }}" 
+                                   placeholder="https://docs.google.com/... ou https://...">
+                            @if($lesson->url_web)
+                                <div class="media-preview-tag">
+                                    <i class="fas fa-external-link-alt" style="color: #3b82f6;"></i>
+                                    <a href="{{ $lesson->url_web }}" target="_blank" style="color: inherit; text-decoration: underline;">Tester le lien Web actuel</a>
                                 </div>
+                            @endif
+                            @error('url_web')
+                                <div class="error-message">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+
+                    <!-- PARTIE 2 : Vidéo d'Explication Conceptuelle -->
+                    <div class="part-card part-2">
+                        <div class="part-header">
+                            <div class="part-title-wrapper">
+                                <span class="part-badge purple">Partie 2</span>
+                                <h4 style="margin: 0; font-size: 1.1rem; color: #1e293b; font-weight: 700;">
+                                    <i class="fas fa-play-circle" style="color: #8b5cf6; margin-right: 0.35rem;"></i>
+                                    Vidéo d'Explication (Fondements & Concepts)
+                                </h4>
                             </div>
-                            <p class="mt-1 text-sm text-gray-500">Temps estimé pour cette leçon</p>
+                            <span style="font-size: 0.8rem; color: #64748b;">Cours magistral vidéo</span>
                         </div>
 
-                        <div>
-                            <label for="ordre" class="block text-sm font-semibold text-gray-700 mb-2">
-                                Ordre d'Affichage <span class="text-red-500">*</span>
-                            </label>
-                            <input type="number" 
-                                   name="ordre" 
-                                   id="ordre" 
-                                   value="{{ old('ordre', $lesson->ordre) }}"
-                                   min="0"
-                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                                   required>
-                            <p class="mt-1 text-sm text-gray-500">Position dans le chapitre</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Contenu de la leçon -->
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                    <span class="bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">2</span>
-                    Contenu de la Leçon
-                </h2>
-
-                <div class="space-y-6">
-                    <div>
-                        <label for="contenu_texte" class="block text-sm font-semibold text-gray-700 mb-2">
-                            Contenu Texte
-                        </label>
-                        <textarea name="contenu_texte" 
-                                  id="contenu_texte" 
-                                  rows="8"
-                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-mono text-sm"
-                                  placeholder="Saisissez le contenu de la leçon...">{{ old('contenu_texte', $lesson->contenu_texte) }}</textarea>
-                        <p class="mt-1 text-sm text-gray-500">Le contenu principal de votre leçon (supporte le Markdown)</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Ressources multimédia -->
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                    <span class="bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">3</span>
-                    Ressources Multimédia
-                </h2>
-
-                <div class="space-y-6">
-                    <div>
-                        <label for="url_video" class="block text-sm font-semibold text-gray-700 mb-2">
-                            URL de la Vidéo
-                        </label>
-                        <div class="relative">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">URL de la Vidéo d'Explication</label>
                             <input type="url" 
-                                   name="url_video" 
-                                   id="url_video" 
-                                   value="{{ old('url_video', $lesson->url_video) }}"
-                                   class="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                                   placeholder="https://youtube.com/watch?v=...">
-                            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                </svg>
-                            </div>
+                                   name="url_video_explication" 
+                                   class="form-control @error('url_video_explication') error @enderror" 
+                                   value="{{ old('url_video_explication', $lesson->url_video_explication ?? $lesson->url_video) }}" 
+                                   placeholder="https://www.youtube.com/watch?v=... ou lien MP4 / Vimeo">
+                            @if($lesson->url_video_explication ?? $lesson->url_video)
+                                <div class="media-preview-tag">
+                                    <i class="fas fa-video" style="color: #8b5cf6;"></i>
+                                    <a href="{{ $lesson->url_video_explication ?? $lesson->url_video }}" target="_blank" style="color: inherit; text-decoration: underline;">Tester la vidéo d'explication</a>
+                                </div>
+                            @endif
+                            <div class="form-help">Vidéo pédagogique expliquant les concepts fondamentaux de la leçon.</div>
+                            @error('url_video_explication')
+                                <div class="error-message">{{ $message }}</div>
+                            @enderror
                         </div>
-                        <p class="mt-1 text-sm text-gray-500">Lien vers une vidéo YouTube, Vimeo, etc.</p>
-                        @if($lesson->url_video)
-                        <div class="mt-2 p-2 bg-green-50 border border-green-200 rounded flex items-center text-sm text-green-700">
-                            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                            </svg>
-                            Vidéo actuellement configurée
-                        </div>
-                        @endif
                     </div>
 
-                    <div>
-                        <label for="url_externe" class="block text-sm font-semibold text-gray-700 mb-2">
-                            URL Externe
-                        </label>
-                        <div class="relative">
+                    <!-- PARTIE 3 : Vidéo Pratique & Atelier Démonstration -->
+                    <div class="part-card part-3">
+                        <div class="part-header">
+                            <div class="part-title-wrapper">
+                                <span class="part-badge green">Partie 3</span>
+                                <h4 style="margin: 0; font-size: 1.1rem; color: #1e293b; font-weight: 700;">
+                                    <i class="fas fa-laptop-code" style="color: #10b981; margin-right: 0.35rem;"></i>
+                                    Vidéo de Pratique & Cas Concret
+                                </h4>
+                            </div>
+                            <span style="font-size: 0.8rem; color: #64748b;">Démonstration métier</span>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">URL de la Vidéo Pratique</label>
                             <input type="url" 
-                                   name="url_externe" 
-                                   id="url_externe" 
-                                   value="{{ old('url_externe', $lesson->url_externe) }}"
-                                   class="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                                   placeholder="https://example.com/resource">
-                            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-                                </svg>
-                            </div>
-                        </div>
-                        <p class="mt-1 text-sm text-gray-500">Lien vers une ressource externe ou un document</p>
-                        @if($lesson->url_externe)
-                        <div class="mt-2 p-2 bg-green-50 border border-green-200 rounded flex items-center text-sm text-green-700">
-                            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                            </svg>
-                            URL externe actuellement configurée
-                        </div>
-                        @endif
-                    </div>
-
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <h3 class="text-sm font-semibold text-blue-900">À propos des ressources</h3>
-                                <p class="mt-1 text-sm text-blue-700">
-                                    Les ressources multimédia sont optionnelles. Vous pouvez ajouter une vidéo, un lien externe, ou les deux pour enrichir votre leçon.
-                                </p>
-                            </div>
+                                   name="url_video_pratique" 
+                                   class="form-control @error('url_video_pratique') error @enderror" 
+                                   value="{{ old('url_video_pratique', $lesson->url_video_pratique) }}" 
+                                   placeholder="https://www.youtube.com/watch?v=... ou lien MP4 / Vimeo">
+                            @if($lesson->url_video_pratique)
+                                <div class="media-preview-tag">
+                                    <i class="fas fa-laptop-code" style="color: #10b981;"></i>
+                                    <a href="{{ $lesson->url_video_pratique }}" target="_blank" style="color: inherit; text-decoration: underline;">Tester la vidéo pratique</a>
+                                </div>
+                            @endif
+                            <div class="form-help">Démonstration concrète, atelier pratique, manipulation d'outils et cas réel.</div>
+                            @error('url_video_pratique')
+                                <div class="error-message">{{ $message }}</div>
+                            @enderror
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Paramètres -->
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                    <span class="bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">4</span>
-                    Paramètres
-                </h2>
+            <!-- Statut & Activation -->
+            <div class="form-section" style="border-top: 1px solid #e2e8f0; padding-top: 2rem;">
+                <h3 class="form-section-title">
+                    <div class="section-icon" style="background-color: #d1fae5; color: #059669;">
+                        <i class="fas fa-toggle-on"></i>
+                    </div>
+                    3. Visibilité
+                </h3>
 
-                <div class="border-t border-gray-200 pt-6">
-                    <label class="flex items-center cursor-pointer">
-                        <input type="checkbox" 
-                               name="active" 
-                               id="active" 
-                               value="1"
-                               {{ old('active', $lesson->active) ? 'checked' : '' }}
-                               class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                        <span class="ml-3">
-                            <span class="text-sm font-semibold text-gray-700">Leçon active</span>
-                            <p class="text-sm text-gray-500">Les leçons actives sont visibles par les apprenants</p>
-                        </span>
+                <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background-color: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" name="active" id="active" value="1" {{ old('active', $lesson->active) ? 'checked' : '' }} style="width: 20px; height: 20px; accent-color: #2563eb;">
+                    <label for="active" style="cursor: pointer; margin: 0;">
+                        <div style="font-weight: 600; color: #1e293b;">Leçon active et accessible</div>
+                        <div style="font-size: 0.85rem; color: #64748b;">Les apprenants inscrits pourront visionner cette leçon.</div>
                     </label>
                 </div>
             </div>
 
-            <!-- Statistiques -->
-            <div class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg shadow-lg p-6 border border-purple-200">
-                <h3 class="text-lg font-bold text-gray-900 mb-4">Statistiques</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-white rounded-lg p-4">
-                        <div class="flex items-center">
-                            <div class="bg-purple-100 rounded-full p-2 mr-3">
-                                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-600">Vues</p>
-                                <p class="text-2xl font-bold text-gray-900">
-                                    {{ $lesson->progress->count() }}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+            <!-- Actions -->
+            <div class="form-actions" style="margin-top: 2rem; display: flex; justify-content: space-between; align-items: center;">
+                <button type="button" 
+                        class="btn btn-danger" 
+                        onclick="if(confirm('Supprimer définitivement cette leçon ?')) document.getElementById('deleteLessonForm').submit();">
+                    <i class="fas fa-trash" style="margin-right: 0.5rem;"></i> Supprimer la leçon
+                </button>
 
-                    <div class="bg-white rounded-lg p-4">
-                        <div class="flex items-center">
-                            <div class="bg-green-100 rounded-full p-2 mr-3">
-                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-600">Complétée</p>
-                                <p class="text-2xl font-bold text-gray-900">
-                                    {{ $lesson->progress->where('completed', true)->count() }}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Boutons d'action -->
-            <div class="flex justify-between">
-                <form action="{{ route('admin.lessons.destroy', $lesson) }}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette leçon ? Cette action est irréversible.');">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" 
-                            class="px-6 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors duration-200">
-                        <span class="flex items-center">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                            Supprimer
-                        </span>
-                    </button>
-                </form>
-
-                <div class="flex space-x-4">
-                    <a href="{{ route('admin.chapters.show', $lesson->chapter) }}" 
-                       class="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors duration-200">
-                        Annuler
+                <div style="display: flex; gap: 0.75rem;">
+                    <a href="{{ $currentModule ? route('admin.modules.show', $currentModule) : route('admin.packs.index') }}" class="btn btn-secondary">
+                        <i class="fas fa-times" style="margin-right: 0.5rem;"></i> Annuler
                     </a>
-                    <button type="submit" 
-                            class="px-6 py-3 bg-gradient-to-r from-blue-600 to-green-600 text-white font-semibold rounded-lg shadow-md hover:from-blue-700 hover:to-green-700 transform hover:scale-105 transition-all duration-200">
-                        <span class="flex items-center">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            Mettre à Jour
-                        </span>
+                    <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem;">
+                        <i class="fas fa-save" style="margin-right: 0.5rem;"></i> Mettre à Jour (3 Parties)
                     </button>
                 </div>
             </div>
-        </form>
-    </div>
+        </div>
+    </form>
+
+    <!-- Separate Delete Form to prevent invalid HTML nested forms -->
+    <form id="deleteLessonForm" action="{{ route('admin.lessons.destroy', $lesson) }}" method="POST" style="display: none;">
+        @csrf
+        @method('DELETE')
+    </form>
 </div>
 @endsection

@@ -41,6 +41,7 @@ return [
     ],
 
     'moneyfusion' => [
-        'api_url' => env('MONEYFUSION_API_URL', 'https://www.pay.moneyfusion.net/Elite2_0/32cb4c51bd4a466d/pay/'),
+        'api_url'        => env('MONEYFUSION_API_URL', 'https://www.pay.moneyfusion.net/Elite2_0/32cb4c51bd4a466d/pay/'),
+        'webhook_secret' => env('MONEYFUSION_WEBHOOK_SECRET', env('PAYMENT_WEBHOOK_SECRET')),
     ],
 ];

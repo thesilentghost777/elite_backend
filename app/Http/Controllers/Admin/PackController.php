@@ -30,10 +30,11 @@ class PackController extends Controller
             'category_id' => 'required|exists:categories,id',
             'nom' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'niveau_requis' => 'required|string',
-            'durees_disponibles' => 'required|array',
-            'diplomes_possibles' => 'required|array',
+            'niveau_requis' => 'required|string|in:BEPC,Probatoire,BAC,Licence,Master',
+            'durees_disponibles' => 'required|array|min:1',
+            'diplomes_possibles' => 'nullable|array',
             'prix_points' => 'required|integer|min:1',
+            'prix_fcfa' => 'nullable|numeric|min:0',
             'debouches' => 'nullable|array',
             'profiles' => 'nullable|array',
             'active' => 'boolean',
@@ -41,6 +42,10 @@ class PackController extends Controller
 
         $validated['slug'] = Str::slug($validated['nom']);
         $validated['active'] = $request->boolean('active');
+        $validated['diplomes_possibles'] = $request->input('diplomes_possibles', []);
+        if (isset($validated['debouches']) && is_array($validated['debouches'])) {
+            $validated['debouches'] = array_values(array_filter(array_map('trim', $validated['debouches'])));
+        }
 
         $pack = Pack::create($validated);
 
@@ -52,16 +57,16 @@ class PackController extends Controller
     }
 
     public function show(Pack $pack)
-{
-    // ✅ Changer 'quiz' en 'quizzes' (pluriel)
-    $pack->load([
-        'modules.chapters.lessons', 
-        'modules.chapters.quizzes.questions', // ← quizzes au lieu de quiz
-        'profiles', 
-        'userPacks.user'
-    ]);
-    return view('admin.packs.show', compact('pack'));
-}
+    {
+        $pack->load([
+            'category',
+            'modules.lessons', 
+            'modules.quizzes.questions',
+            'profiles', 
+            'userPacks.user'
+        ]);
+        return view('admin.packs.show', compact('pack'));
+    }
 
     public function edit(Pack $pack)
     {
@@ -77,10 +82,11 @@ class PackController extends Controller
             'category_id' => 'required|exists:categories,id',
             'nom' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'niveau_requis' => 'required|string',
-            'durees_disponibles' => 'required|array',
-            'diplomes_possibles' => 'required|array',
+            'niveau_requis' => 'required|string|in:BEPC,Probatoire,BAC,Licence,Master',
+            'durees_disponibles' => 'required|array|min:1',
+            'diplomes_possibles' => 'nullable|array',
             'prix_points' => 'required|integer|min:1',
+            'prix_fcfa' => 'nullable|numeric|min:0',
             'debouches' => 'nullable|array',
             'profiles' => 'nullable|array',
             'active' => 'boolean',
@@ -88,6 +94,10 @@ class PackController extends Controller
 
         $validated['slug'] = Str::slug($validated['nom']);
         $validated['active'] = $request->boolean('active');
+        $validated['diplomes_possibles'] = $request->input('diplomes_possibles', []);
+        if (isset($validated['debouches']) && is_array($validated['debouches'])) {
+            $validated['debouches'] = array_values(array_filter(array_map('trim', $validated['debouches'])));
+        }
 
         $pack->update($validated);
 

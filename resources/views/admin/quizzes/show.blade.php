@@ -1,249 +1,204 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Détails du quiz')
+@section('title', 'Assistant Quiz : ' . $quiz->titre)
+
+@php
+    $currentModule = $quiz->module ?? ($quiz->chapter?->module ?? null);
+    $pack = $currentModule?->pack;
+@endphp
 
 @section('breadcrumb')
     <a href="{{ route('admin.dashboard') }}">Tableau de bord</a>
     <span>/</span>
-    <a href="{{ route('admin.chapters.show', $quiz->chapter) }}">Chapitre</a>
-    <span>/</span>
-    <span>{{ $quiz->titre }}</span>
+    @if($pack)
+        <a href="{{ route('admin.packs.show', $pack) }}">{{ $pack->nom }}</a>
+        <span>/</span>
+    @endif
+    @if($currentModule)
+        <a href="{{ route('admin.modules.show', $currentModule) }}">{{ $currentModule->nom }}</a>
+        <span>/</span>
+    @endif
+    <span>Quiz : {{ $quiz->titre }}</span>
 @endsection
 
 @section('content')
+@php
+    $questionsCount = $quiz->questions->count();
+    $isComplete = $questionsCount === 10;
+    $missingCount = max(0, 10 - $questionsCount);
+    $progressPercent = min(100, ($questionsCount / 10) * 100);
+
+    $paliers = [
+        1 => ['fcfa' => '1 000 FCFA', 'label' => 'Palier 1', 'badge' => 'gray'],
+        2 => ['fcfa' => '5 000 FCFA', 'label' => 'Palier 2', 'badge' => 'gray'],
+        3 => ['fcfa' => '10 000 FCFA', 'label' => 'Palier 3', 'badge' => 'gray'],
+        4 => ['fcfa' => '25 000 FCFA', 'label' => 'Palier 4', 'badge' => 'gray'],
+        5 => ['fcfa' => '50 000 FCFA', 'label' => 'Palier 5', 'badge' => 'gray'],
+        6 => ['fcfa' => '100 000 FCFA', 'label' => 'Palier 6', 'badge' => 'gray'],
+        7 => ['fcfa' => '250 000 FCFA', 'label' => '⭐️ Palier 7/10 (Déblocage Module suivant)', 'badge' => 'warning', 'is_threshold' => true],
+        8 => ['fcfa' => '500 000 FCFA', 'label' => 'Palier 8', 'badge' => 'purple'],
+        9 => ['fcfa' => '750 000 FCFA', 'label' => 'Palier 9', 'badge' => 'purple'],
+        10 => ['fcfa' => '1 000 000 FCFA', 'label' => '🏆 Palier 10/10 (Cagnotte Maximale)', 'badge' => 'gold', 'is_jackpot' => true],
+    ];
+
+    $questionsByOrder = $quiz->questions->keyBy('ordre');
+@endphp
+
 <style>
-    .quiz-hero {
-        background: linear-gradient(135deg, var(--primary-blue), var(--secondary-blue));
+    .quiz-hero-banner {
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%);
         border-radius: 16px;
-        padding: 2.5rem;
+        padding: 2rem;
         color: white;
         margin-bottom: 2rem;
-        box-shadow: 0 8px 16px rgba(37, 99, 235, 0.3);
+        box-shadow: 0 10px 25px rgba(30, 58, 138, 0.25);
     }
 
-    .quiz-hero-content {
+    .hero-flex {
         display: flex;
         justify-content: space-between;
-        align-items: start;
+        align-items: flex-start;
         gap: 2rem;
-    }
-
-    .quiz-hero-info h1 {
-        font-size: 2rem;
-        font-weight: bold;
-        margin-bottom: 0.75rem;
-    }
-
-    .quiz-hero-meta {
-        display: flex;
         flex-wrap: wrap;
-        gap: 1.5rem;
-        margin-top: 1rem;
-        font-size: 0.875rem;
-        opacity: 0.95;
     }
 
-    .quiz-hero-meta-item {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .quiz-hero-actions {
-        display: flex;
-        gap: 0.75rem;
-        flex-shrink: 0;
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
+    .assistant-status-card {
+        background: #ffffff;
+        border-radius: 14px;
+        padding: 1.5rem;
         margin-bottom: 2rem;
+        border: 2px solid {{ $isComplete ? '#10b981' : '#f59e0b' }};
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
 
-    .stat-box {
-        background-color: var(--white);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        text-align: center;
+    .progress-bar-bg {
+        background: #e2e8f0;
+        border-radius: 999px;
+        height: 14px;
+        overflow: hidden;
+        margin: 1rem 0;
     }
 
-    .stat-value {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: var(--primary-blue);
-        line-height: 1;
-        margin-bottom: 0.5rem;
+    .progress-bar-fill {
+        background: {{ $isComplete ? 'linear-gradient(90deg, #10b981, #059669)' : 'linear-gradient(90deg, #f59e0b, #d97706)' }};
+        height: 100%;
+        width: {{ $progressPercent }}%;
+        transition: width 0.4s ease;
     }
 
-    .stat-value.green {
-        color: var(--success-green);
-    }
-
-    .stat-label {
-        font-size: 0.75rem;
-        color: var(--gray-600);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .question-card {
-        background-color: var(--white);
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        border: 2px solid var(--gray-200);
-        transition: all 0.2s;
-    }
-
-    .question-card:hover {
-        border-color: var(--primary-blue);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .question-header {
+    .ladder-grid {
         display: flex;
-        justify-content: space-between;
-        align-items: start;
-        margin-bottom: 1rem;
+        flex-direction: column-reverse;
+        gap: 0.85rem;
+        margin-top: 1.5rem;
     }
 
-    .question-number {
-        display: inline-flex;
+    .ladder-row {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 2px solid #e2e8f0;
+        padding: 1rem 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: all 0.2s ease;
+        gap: 1rem;
+    }
+
+    .ladder-row.configured {
+        border-color: #cbd5e1;
+        background: #ffffff;
+    }
+
+    .ladder-row.threshold {
+        border-color: #f59e0b;
+        background: #fffbeb;
+    }
+
+    .ladder-row.jackpot {
+        border-color: #8b5cf6;
+        background: #f5f3ff;
+    }
+
+    .ladder-row.missing {
+        border-style: dashed;
+        border-color: #cbd5e1;
+        background: #f8fafc;
+    }
+
+    .ladder-step-badge {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        background: #1e40af;
+        color: white;
+        font-weight: 800;
+        display: flex;
         align-items: center;
         justify-content: center;
-        width: 36px;
-        height: 36px;
-        background: linear-gradient(135deg, var(--primary-blue), var(--secondary-blue));
-        color: white;
-        border-radius: 8px;
-        font-weight: bold;
-        font-size: 1rem;
+        font-size: 1.1rem;
         flex-shrink: 0;
     }
 
-    .question-content {
-        flex: 1;
-        margin: 0 1rem;
+    .ladder-step-badge.threshold {
+        background: #f59e0b;
     }
 
-    .question-text {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: var(--gray-900);
-        margin-bottom: 0.5rem;
-        line-height: 1.5;
+    .ladder-step-badge.jackpot {
+        background: linear-gradient(135deg, #8b5cf6, #ec4899);
     }
 
-    .question-meta {
-        display: flex;
-        gap: 1rem;
-        font-size: 0.75rem;
-        color: var(--gray-600);
+    .ladder-step-badge.missing-badge {
+        background: #94a3b8;
     }
 
-    .question-type {
+    .cagnotte-pill {
         display: inline-flex;
         align-items: center;
-        gap: 0.25rem;
-        padding: 0.25rem 0.75rem;
-        background-color: var(--light-blue);
-        color: var(--primary-blue);
-        border-radius: 6px;
-        font-weight: 600;
+        gap: 0.35rem;
+        font-weight: 700;
+        font-size: 0.9rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #1e293b;
     }
 
-    .question-actions {
+    .cagnotte-pill.gold {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #fde68a;
+    }
+
+    .cagnotte-pill.purple {
+        background: #ede9fe;
+        color: #5b21b6;
+        border: 1px solid #ddd6fe;
+    }
+
+    .question-options-preview {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+
+    .option-chip {
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        font-size: 0.85rem;
         display: flex;
+        align-items: center;
         gap: 0.5rem;
     }
 
-    .btn-icon {
-        padding: 0.5rem;
-        border-radius: 6px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-        cursor: pointer;
-        border: none;
-    }
-
-    .btn-edit {
-        background-color: var(--light-green);
-        color: var(--success-green);
-    }
-
-    .btn-edit:hover {
-        background-color: var(--success-green);
-        color: white;
-    }
-
-    .btn-delete {
-        background-color: #fee2e2;
-        color: #991b1b;
-    }
-
-    .btn-delete:hover {
-        background-color: var(--danger);
-        color: white;
-    }
-
-    .answers-list {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        margin-top: 1rem;
-        padding-left: 2.5rem;
-    }
-
-    .answer-item {
-        display: flex;
-        align-items: start;
-        gap: 0.75rem;
-        padding: 0.75rem 1rem;
-        background-color: var(--gray-50);
-        border-radius: 8px;
-        border: 2px solid var(--gray-200);
-    }
-
-    .answer-item.correct {
-        background-color: var(--light-green);
-        border-color: var(--success-green);
-    }
-
-    .answer-icon {
-        flex-shrink: 0;
-        color: var(--gray-500);
-    }
-
-    .answer-item.correct .answer-icon {
-        color: var(--success-green);
-    }
-
-    .answer-text {
-        flex: 1;
-        font-size: 0.875rem;
-        color: var(--gray-700);
-        line-height: 1.5;
-    }
-
-    .answer-item.correct .answer-text {
-        color: var(--dark-green);
-        font-weight: 500;
-    }
-
-    .empty-questions {
-        text-align: center;
-        padding: 4rem 2rem;
-        color: var(--gray-600);
-    }
-
-    .empty-questions svg {
-        margin: 0 auto 1rem;
-        opacity: 0.5;
+    .option-chip.correct {
+        background: #d1fae5;
+        border-color: #10b981;
+        color: #065f46;
+        font-weight: 600;
     }
 
     .modal-overlay {
@@ -253,319 +208,360 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background-color: rgba(0, 0, 0, 0.5);
-        z-index: 9999;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 99999;
         align-items: center;
         justify-content: center;
+        padding: 1.5rem;
         overflow-y: auto;
-        padding: 2rem;
     }
 
     .modal-overlay.active {
         display: flex;
     }
 
-    .modal {
-        background-color: var(--white);
-        border-radius: 12px;
+    .modal-card {
+        background: white;
+        border-radius: 16px;
         padding: 2rem;
-        max-width: 700px;
+        max-width: 720px;
         width: 100%;
         max-height: 90vh;
         overflow-y: auto;
-    }
-
-    .modal-header {
-        margin-bottom: 1.5rem;
-    }
-
-    .modal-title {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: var(--gray-900);
-    }
-
-    .modal-footer {
-        display: flex;
-        gap: 0.75rem;
-        justify-content: flex-end;
-        margin-top: 1.5rem;
-        padding-top: 1.5rem;
-        border-top: 1px solid var(--gray-200);
-    }
-
-    .answer-input-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        margin-top: 0.5rem;
-    }
-
-    .answer-input-item {
-        display: flex;
-        gap: 0.5rem;
-        align-items: start;
-    }
-
-    .answer-checkbox {
-        margin-top: 0.75rem;
-        flex-shrink: 0;
-    }
-
-    .answer-input {
-        flex: 1;
-    }
-
-    @media (max-width: 768px) {
-        .quiz-hero-content {
-            flex-direction: column;
-        }
-
-        .quiz-hero-actions {
-            width: 100%;
-        }
-
-        .question-header {
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .question-actions {
-            width: 100%;
-        }
-
-        .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     }
 </style>
 
-<div class="page-header" style="margin-bottom: 2rem;">
-    <a href="{{ route('admin.chapters.show', $quiz->chapter) }}" class="btn btn-secondary">
-        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-        </svg>
-        Retour au chapitre
-    </a>
-</div>
-
 <!-- Hero Section -->
-<div class="quiz-hero">
-    <div class="quiz-hero-content">
-        <div class="quiz-hero-info">
-            <h1>{{ $quiz->titre }}</h1>
+<div class="quiz-hero-banner">
+    <div class="hero-flex">
+        <div>
+            <div style="font-size: 0.875rem; opacity: 0.85; margin-bottom: 0.35rem;">
+                <i class="fas fa-layer-group" style="margin-right: 0.35rem;"></i>
+                {{ $pack?->nom }} &bull; {{ $currentModule?->nom }}
+            </div>
+            <h1 style="font-size: 1.75rem; font-weight: 800; margin: 0 0 0.5rem 0;">{{ $quiz->titre }}</h1>
             @if($quiz->description)
-                <p style="opacity: 0.9; margin-top: 0.5rem;">{{ $quiz->description }}</p>
+                <p style="opacity: 0.9; margin: 0 0 1rem 0; font-size: 0.95rem;">{{ $quiz->description }}</p>
             @endif
-            <div class="quiz-hero-meta">
-                <div class="quiz-hero-meta-item">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <span>{{ $quiz->duree_minutes }} minutes</span>
+
+            <div style="display: flex; gap: 1.25rem; flex-wrap: wrap; font-size: 0.875rem; opacity: 0.95;">
+                <div><i class="fas fa-clock" style="margin-right: 0.35rem;"></i> {{ $quiz->duree_minutes }} min</div>
+                <div><i class="fas fa-trophy" style="margin-right: 0.35rem;"></i> Cagnotte : 1 000 000 FCFA</div>
+                <div><i class="fas fa-star" style="margin-right: 0.35rem;"></i> Palier de passage : 7/10 ({{ $currentModule?->note_passage ?? 14 }}/20)</div>
+                <div>
+                    @if($quiz->active)
+                        <span class="badge" style="background: #10b981; color: white;">Actif</span>
+                    @else
+                        <span class="badge" style="background: #ef4444; color: white;">Inactif</span>
+                    @endif
                 </div>
-                <div class="quiz-hero-meta-item">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-                    </svg>
-                    <span>{{ $quiz->chapter->nom }}</span>
-                </div>
-                @if(!$quiz->active)
-                <div class="quiz-hero-meta-item" style="color: #fca5a5;">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <span>Inactif</span>
-                </div>
-                @endif
             </div>
         </div>
 
-        <div class="quiz-hero-actions">
-            <a href="{{ route('admin.quizzes.edit', $quiz) }}" class="btn btn-success">
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                </svg>
-                Modifier
+        <div style="display: flex; gap: 0.75rem;">
+            @if($currentModule)
+                <a href="{{ route('admin.modules.show', $currentModule) }}" class="btn btn-secondary" style="background: rgba(255,255,255,0.15); border: none; color: white;">
+                    <i class="fas fa-arrow-left" style="margin-right: 0.4rem;"></i> Module
+                </a>
+            @endif
+            <a href="{{ route('admin.quizzes.edit', $quiz) }}" class="btn btn-secondary" style="background: rgba(255,255,255,0.25); border: none; color: white;">
+                <i class="fas fa-cog" style="margin-right: 0.4rem;"></i> Paramètres
             </a>
         </div>
     </div>
 </div>
 
-<!-- Statistiques -->
-<div class="stats-grid">
-    <div class="stat-box">
-        <div class="stat-value">{{ $quiz->questions->count() }}</div>
-        <div class="stat-label">Questions</div>
+<!-- Assistant 10 Questions Bloquant -->
+<div class="assistant-status-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <span style="font-size: 1.5rem;">
+                    @if($isComplete) 🏆 @else 🎯 @endif
+                </span>
+                <div>
+                    <h3 style="margin: 0; font-size: 1.2rem; font-weight: 700; color: #1e293b;">
+                        Assistant 10 Questions — Mécanique "Qui Veut Gagner des Millions"
+                    </h3>
+                    <div style="font-size: 0.875rem; color: #64748b; margin-top: 0.15rem;">
+                        Chaque quiz doit comporter rigoureusement <strong>10 questions</strong> (1 question par palier de cagnotte).
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            @if($isComplete)
+                <span class="badge" style="background: #d1fae5; color: #065f46; font-size: 0.9rem; padding: 0.5rem 1rem; border-radius: 999px;">
+                    <i class="fas fa-check-circle" style="margin-right: 0.35rem;"></i> 10/10 Questions — Validé & Prêt
+                </span>
+            @else
+                <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.9rem; padding: 0.5rem 1rem; border-radius: 999px;">
+                    <i class="fas fa-exclamation-triangle" style="margin-right: 0.35rem;"></i> Incomplet ({{ $questionsCount }}/10) — Bloquant
+                </span>
+            @endif
+        </div>
     </div>
-    <div class="stat-box">
-        <div class="stat-value green">{{ $quiz->max_points ?? 0 }}</div>
-        <div class="stat-label">Points total</div>
+
+    <!-- Progress bar -->
+    <div class="progress-bar-bg">
+        <div class="progress-bar-fill"></div>
     </div>
-    <div class="stat-box">
-        <div class="stat-value">{{ $quiz->results->count() ?? 0 }}</div>
-        <div class="stat-label">Tentatives</div>
+
+    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b; font-weight: 600;">
+        <span>Progression : {{ $questionsCount }} sur 10 questions</span>
+        @if(!$isComplete)
+            <span style="color: #b45309;">Il reste {{ $missingCount }} question(s) pour débloquer l'accès étudiant</span>
+        @else
+            <span style="color: #047857;">Le quiz respecte toutes les conditions de déblocage</span>
+        @endif
     </div>
-    <div class="stat-box">
-        <div class="stat-value">{{ $quiz->duree_minutes }}</div>
-        <div class="stat-label">Minutes</div>
-    </div>
+
+    @if(!$isComplete)
+        <div style="margin-top: 1rem; padding: 0.85rem 1rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 0.85rem; color: #92400e; display: flex; gap: 0.5rem; align-items: center;">
+            <i class="fas fa-lock" style="font-size: 1.1rem; color: #d97706;"></i>
+            <div>
+                <strong>Règle bloquante active :</strong> L'API mobile et le web rejettent l'exécution du quiz si le nombre de questions est différent de 10. Utilisez les boutons ci-dessous pour rédiger les paliers manquants.
+            </div>
+        </div>
+    @endif
 </div>
 
-<!-- Liste des questions -->
-<div class="card">
-    <div class="card-header">
-        <h2 class="card-title">
-            Questions du quiz 
-            <span style="font-weight: normal; color: var(--gray-600);">({{ $quiz->questions->count() }})</span>
-        </h2>
-        <button onclick="openModal('addQuestionModal')" class="btn btn-primary">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-            </svg>
-            Ajouter une question
-        </button>
-    </div>
+<!-- Pyramide des 10 Paliers de Questions -->
+<div class="form-card" style="margin-bottom: 2.5rem;">
+    <div class="form-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+            <h3 class="form-section-title" style="margin: 0;">
+                <div class="section-icon" style="background-color: #dbeafe; color: #1e40af;">
+                    <i class="fas fa-list-ol"></i>
+                </div>
+                Grille des 10 Paliers & Questions
+            </h3>
 
-    @forelse($quiz->questions as $index => $question)
-        <div class="question-card">
-            <div class="question-header">
-                <div class="question-number">{{ $index + 1 }}</div>
-                
-                <div class="question-content">
-                    <div class="question-text">{{ $question->enonce }}</div>
-                    <div class="question-meta">
-                        <span class="question-type">
-                            {{ $question->type == 'qcm' ? 'QCM' : 'Vrai/Faux' }}
-                        </span>
-                        <span>• {{ $question->points }} point(s)</span>
-                        @if($question->explication)
-                            <span>• Explication fournie</span>
+            @if(!$isComplete)
+                <button type="button" class="btn btn-primary" onclick="openAddQuestionModal({{ $questionsCount + 1 }})">
+                    <i class="fas fa-plus" style="margin-right: 0.4rem;"></i> Ajouter la Question #{{ $questionsCount + 1 }}
+                </button>
+            @endif
+        </div>
+
+        <div class="ladder-grid">
+            @for($i = 10; $i >= 1; $i--)
+                @php
+                    $palierInfo = $paliers[$i];
+                    $question = $questionsByOrder->get($i) ?? $quiz->questions->where('ordre', $i)->first();
+                    $isThreshold = !empty($palierInfo['is_threshold']);
+                    $isJackpot = !empty($palierInfo['is_jackpot']);
+                @endphp
+
+                <div class="ladder-row {{ $question ? 'configured' : 'missing' }} {{ $isJackpot ? 'jackpot' : ($isThreshold ? 'threshold' : '') }}">
+                    <!-- Left: Step Number + Icon -->
+                    <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                        <div class="ladder-step-badge {{ $isJackpot ? 'jackpot' : ($isThreshold ? 'threshold' : ($question ? '' : 'missing-badge')) }}">
+                            Q{{ $i }}
+                        </div>
+
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.25rem;">
+                                <span class="cagnotte-pill {{ $isJackpot ? 'gold' : ($isThreshold ? 'gold' : '') }}">
+                                    <i class="fas fa-coins" style="color: #f59e0b;"></i> {{ $palierInfo['fcfa'] }}
+                                </span>
+                                <span style="font-size: 0.8rem; font-weight: 700; color: {{ $isJackpot ? '#7c3aed' : ($isThreshold ? '#b45309' : '#64748b') }};">
+                                    {{ $palierInfo['label'] }}
+                                </span>
+                            </div>
+
+                            @if($question)
+                                <div style="font-weight: 600; color: #1e293b; font-size: 0.95rem; line-height: 1.4;">
+                                    {{ $question->enonce }}
+                                </div>
+                                <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">
+                                    Type : <strong>{{ $question->type === 'qcm' ? 'QCM (Choix Multiples)' : 'Vrai / Faux' }}</strong> &bull; 
+                                    Points : <strong>{{ $question->points }} pt(s)</strong>
+                                    @if($question->explication)
+                                        &bull; <span style="color: #2563eb;"><i class="fas fa-lightbulb"></i> Explication incluse</span>
+                                    @endif
+                                </div>
+
+                                <!-- Réponses -->
+                                <div class="question-options-preview">
+                                    @foreach($question->answers as $ans)
+                                        <div class="option-chip {{ $ans->est_correcte ? 'correct' : '' }}">
+                                            @if($ans->est_correcte)
+                                                <i class="fas fa-check-circle" style="color: #10b981;"></i>
+                                            @else
+                                                <i class="far fa-circle" style="color: #94a3b8;"></i>
+                                            @endif
+                                            <span>{{ $ans->texte }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @else
+                                <div style="color: #94a3b8; font-style: italic; font-size: 0.9rem;">
+                                    <i class="fas fa-exclamation-circle" style="margin-right: 0.3rem;"></i> 
+                                    Question #{{ $i }} non configurée (Palier {{ $palierInfo['fcfa'] }})
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    <!-- Right: Actions -->
+                    <div>
+                        @if($question)
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button type="button" 
+                                        class="btn btn-secondary" 
+                                        style="padding: 0.4rem 0.75rem; font-size: 0.85rem;"
+                                        onclick="openEditQuestionModal({{ $question->toJson() }})">
+                                    <i class="fas fa-edit"></i> Modifier
+                                </button>
+
+                                <form action="{{ route('admin.questions.destroy', $question) }}" 
+                                      method="POST" 
+                                      onsubmit="return confirm('Supprimer la question #{{ $i }} ?');"
+                                      style="display: inline;">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-danger" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        @else
+                            <button type="button" 
+                                    class="btn btn-primary" 
+                                    style="padding: 0.5rem 1rem; font-size: 0.85rem;"
+                                    onclick="openAddQuestionModal({{ $i }})">
+                                <i class="fas fa-plus"></i> Rédiger Q{{ $i }}
+                            </button>
                         @endif
                     </div>
                 </div>
-
-                <div class="question-actions">
-                    <form method="POST" action="{{ route('admin.quizzes.delete-question', $question) }}" 
-                          onsubmit="return confirm('Supprimer cette question ?');">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn-icon btn-delete">
-                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                            </svg>
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Réponses -->
-            <div class="answers-list">
-                @foreach($question->answers as $answer)
-                    <div class="answer-item {{ $answer->est_correcte ? 'correct' : '' }}">
-                        <svg class="answer-icon" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            @if($answer->est_correcte)
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            @else
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            @endif
-                        </svg>
-                        <span class="answer-text">{{ $answer->texte }}</span>
-                    </div>
-                @endforeach
-            </div>
-
-            @if($question->explication)
-                <div style="margin-top: 1rem; padding: 1rem; background-color: var(--light-blue); border-radius: 8px; margin-left: 2.5rem;">
-                    <div style="font-weight: 600; color: var(--primary-blue); margin-bottom: 0.25rem; font-size: 0.875rem;">
-                        💡 Explication
-                    </div>
-                    <div style="font-size: 0.875rem; color: var(--secondary-blue);">
-                        {{ $question->explication }}
-                    </div>
-                </div>
-            @endif
+            @endfor
         </div>
-    @empty
-        <div class="empty-questions">
-            <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <h3 style="margin-bottom: 0.5rem;">Aucune question</h3>
-            <p>Commencez par ajouter des questions à ce quiz</p>
-            <button onclick="openModal('addQuestionModal')" class="btn btn-primary" style="margin-top: 1rem;">
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                </svg>
-                Ajouter la première question
-            </button>
-        </div>
-    @endforelse
+    </div>
 </div>
 
-<!-- Modal Ajouter question -->
+<!-- Modal Ajouter une Question -->
 <div id="addQuestionModal" class="modal-overlay">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 class="modal-title">Ajouter une question</h3>
+    <div class="modal-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 1.35rem; font-weight: 700; color: #1e293b;">
+                <i class="fas fa-plus-circle" style="color: #2563eb; margin-right: 0.4rem;"></i>
+                Rédiger la Question <span id="modalAddOrderLabel"></span>
+            </h3>
+            <button type="button" onclick="closeModal('addQuestionModal')" style="background: none; border: none; font-size: 1.25rem; color: #94a3b8; cursor: pointer;">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
-        
-        <form method="POST" action="{{ route('admin.quizzes.add-question', $quiz) }}">
+
+        <form action="{{ route('admin.quizzes.add-question', $quiz) }}" method="POST">
             @csrf
-            
-            <div class="form-group" style="margin-bottom: 1rem;">
+
+            <input type="hidden" name="ordre" id="addQuestionOrdre" value="1">
+
+            <div class="form-group" style="margin-bottom: 1.25rem;">
                 <label class="form-label">Énoncé de la question <span class="required">*</span></label>
-                <textarea name="enonce" class="form-control" rows="3" required placeholder="Posez votre question ici..."></textarea>
+                <textarea name="enonce" class="form-control" rows="3" required placeholder="Saisissez ici la question posée à l'apprenant..."></textarea>
             </div>
 
-            <div class="form-group" style="margin-bottom: 1rem;">
-                <label class="form-label">Type de question <span class="required">*</span></label>
-                <select name="type" class="form-control" required onchange="updateAnswerFields(this.value)">
-                    <option value="qcm">QCM (Choix multiples)</option>
-                    <option value="vrai_faux">Vrai/Faux</option>
-                </select>
-            </div>
-
-            <div class="form-grid" style="margin-bottom: 1rem;">
+            <div class="form-grid" style="margin-bottom: 1.25rem;">
                 <div class="form-group">
-                    <label class="form-label">Points <span class="required">*</span></label>
-                    <input type="number" name="points" class="form-control" value="1" min="1" required>
+                    <label class="form-label">Type d'évaluation <span class="required">*</span></label>
+                    <select name="type" id="addQuestionType" class="form-control" onchange="renderAddAnswers(this.value)">
+                        <option value="qcm" selected>QCM (4 propositions)</option>
+                        <option value="vrai_faux">Vrai / Faux (2 choix)</option>
+                    </select>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Ordre <span class="required">*</span></label>
-                    <input type="number" name="ordre" class="form-control" value="{{ $quiz->questions->count() + 1 }}" min="0" required>
+                    <label class="form-label">Points accordés <span class="required">*</span></label>
+                    <input type="number" name="points" class="form-control" value="2" min="1" required>
                 </div>
             </div>
 
-            <div class="form-group" style="margin-bottom: 1rem;">
-                <label class="form-label">Réponses <span class="required">*</span></label>
-                <div id="answersContainer" class="answer-input-group">
-                    <div class="answer-input-item">
-                        <input type="checkbox" name="answers[0][est_correcte]" value="1" class="answer-checkbox">
-                        <input type="text" name="answers[0][texte]" class="form-control answer-input" placeholder="Réponse 1" required>
-                    </div>
-                    <div class="answer-input-item">
-                        <input type="checkbox" name="answers[1][est_correcte]" value="1" class="answer-checkbox">
-                        <input type="text" name="answers[1][texte]" class="form-control answer-input" placeholder="Réponse 2" required>
-                    </div>
+            <!-- Réponses Dynamiques -->
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label">Propositions de réponses (Cochez la ou les bonnes réponses) <span class="required">*</span></label>
+                <div id="addAnswersContainer" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <!-- Rendu par JS -->
                 </div>
-                <button type="button" class="add-btn" onclick="addAnswerField()" id="addAnswerBtn" style="margin-top: 0.75rem;">
-                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                    </svg>
-                    Ajouter une réponse
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label class="form-label">Explication pédagogique (Affichée après réponse)</label>
+                <textarea name="explication" class="form-control" rows="2" placeholder="Pourquoi est-ce la bonne réponse ? Astuce ou référence du cours..."></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('addQuestionModal')">Annuler</button>
+                <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">
+                    <i class="fas fa-save" style="margin-right: 0.4rem;"></i> Enregistrer la Question
                 </button>
             </div>
+        </form>
+    </div>
+</div>
 
-            <div class="form-group">
-                <label class="form-label">Explication (optionnel)</label>
-                <textarea name="explication" class="form-control" rows="2" placeholder="Explication de la bonne réponse..."></textarea>
+<!-- Modal Modifier une Question -->
+<div id="editQuestionModal" class="modal-overlay">
+    <div class="modal-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 1.35rem; font-weight: 700; color: #1e293b;">
+                <i class="fas fa-edit" style="color: #2563eb; margin-right: 0.4rem;"></i>
+                Modifier la Question <span id="modalEditOrderLabel"></span>
+            </h3>
+            <button type="button" onclick="closeModal('editQuestionModal')" style="background: none; border: none; font-size: 1.25rem; color: #94a3b8; cursor: pointer;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form id="editQuestionForm" method="POST" action="">
+            @csrf
+            @method('PUT')
+
+            <input type="hidden" name="ordre" id="editQuestionOrdre" value="1">
+
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label">Énoncé de la question <span class="required">*</span></label>
+                <textarea name="enonce" id="editQuestionEnonce" class="form-control" rows="3" required></textarea>
             </div>
-            
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('addQuestionModal')">Annuler</button>
-                <button type="submit" class="btn btn-primary">Ajouter la question</button>
+
+            <div class="form-grid" style="margin-bottom: 1.25rem;">
+                <div class="form-group">
+                    <label class="form-label">Type d'évaluation <span class="required">*</span></label>
+                    <select name="type" id="editQuestionType" class="form-control" onchange="renderEditAnswers(this.value)">
+                        <option value="qcm">QCM (4 propositions)</option>
+                        <option value="vrai_faux">Vrai / Faux (2 choix)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Points accordés <span class="required">*</span></label>
+                    <input type="number" name="points" id="editQuestionPoints" class="form-control" min="1" required>
+                </div>
+            </div>
+
+            <!-- Réponses Modifiables -->
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label">Propositions de réponses <span class="required">*</span></label>
+                <div id="editAnswersContainer" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <!-- Rendu par JS -->
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label class="form-label">Explication pédagogique</label>
+                <textarea name="explication" id="editQuestionExplication" class="form-control" rows="2"></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editQuestionModal')">Annuler</button>
+                <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">
+                    <i class="fas fa-save" style="margin-right: 0.4rem;"></i> Mettre à jour la Question
+                </button>
             </div>
         </form>
     </div>
@@ -573,17 +569,106 @@
 
 @push('scripts')
 <script>
-    let answerCount = 2;
+    function openModal(id) {
+        document.getElementById(id).classList.add('active');
+    }
 
-    function openModal(modalId) {
-        document.getElementById(modalId).classList.add('active');
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
     }
-    
-    function closeModal(modalId) {
-        document.getElementById(modalId).classList.remove('active');
+
+    function openAddQuestionModal(order) {
+        document.getElementById('addQuestionOrdre').value = order;
+        document.getElementById('modalAddOrderLabel').textContent = '#' + order;
+        renderAddAnswers(document.getElementById('addQuestionType').value);
+        openModal('addQuestionModal');
     }
-    
-    // Fermer le modal en cliquant en dehors
+
+    function renderAddAnswers(type) {
+        const container = document.getElementById('addAnswersContainer');
+        if (type === 'vrai_faux') {
+            container.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" name="answers[0][est_correcte]" value="1" style="width: 18px; height: 18px;" checked>
+                    <input type="text" name="answers[0][texte]" value="Vrai" class="form-control" required readonly>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" name="answers[1][est_correcte]" value="1" style="width: 18px; height: 18px;">
+                    <input type="text" name="answers[1][texte]" value="Faux" class="form-control" required readonly>
+                </div>
+            `;
+        } else {
+            container.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" name="answers[0][est_correcte]" value="1" style="width: 18px; height: 18px;" checked title="Bonne réponse">
+                    <input type="text" name="answers[0][texte]" class="form-control" placeholder="Option A (Ex: Réponse correcte)" required>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" name="answers[1][est_correcte]" value="1" style="width: 18px; height: 18px;" title="Bonne réponse">
+                    <input type="text" name="answers[1][texte]" class="form-control" placeholder="Option B" required>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" name="answers[2][est_correcte]" value="1" style="width: 18px; height: 18px;" title="Bonne réponse">
+                    <input type="text" name="answers[2][texte]" class="form-control" placeholder="Option C" required>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" name="answers[3][est_correcte]" value="1" style="width: 18px; height: 18px;" title="Bonne réponse">
+                    <input type="text" name="answers[3][texte]" class="form-control" placeholder="Option D" required>
+                </div>
+            `;
+        }
+    }
+
+    let currentEditingQuestion = null;
+
+    function openEditQuestionModal(question) {
+        currentEditingQuestion = question;
+        document.getElementById('editQuestionForm').action = `/admin/questions/${question.id}`;
+        document.getElementById('modalEditOrderLabel').textContent = '#' + question.ordre;
+        document.getElementById('editQuestionOrdre').value = question.ordre;
+        document.getElementById('editQuestionEnonce').value = question.enonce;
+        document.getElementById('editQuestionType').value = question.type;
+        document.getElementById('editQuestionPoints').value = question.points;
+        document.getElementById('editQuestionExplication').value = question.explication || '';
+
+        renderEditAnswers(question.type, question.answers);
+        openModal('editQuestionModal');
+    }
+
+    function renderEditAnswers(type, answers = null) {
+        const container = document.getElementById('editAnswersContainer');
+        const ansList = answers || (currentEditingQuestion ? currentEditingQuestion.answers : []);
+
+        if (type === 'vrai_faux') {
+            const isVraiCorrect = ansList.find(a => a.texte === 'Vrai' && a.est_correcte);
+            container.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" name="answers[0][est_correcte]" value="1" style="width: 18px; height: 18px;" ${isVraiCorrect || !ansList.length ? 'checked' : ''}>
+                    <input type="text" name="answers[0][texte]" value="Vrai" class="form-control" required readonly>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" name="answers[1][est_correcte]" value="1" style="width: 18px; height: 18px;" ${!isVraiCorrect && ansList.length ? 'checked' : ''}>
+                    <input type="text" name="answers[1][texte]" value="Faux" class="form-control" required readonly>
+                </div>
+            `;
+        } else {
+            let html = '';
+            for (let i = 0; i < 4; i++) {
+                const a = ansList && ansList[i] ? ansList[i] : null;
+                const txt = a ? a.texte : '';
+                const checked = a && a.est_correcte ? 'checked' : (i === 0 && !ansList.length ? 'checked' : '');
+                html += `
+                    <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <input type="checkbox" name="answers[${i}][est_correcte]" value="1" style="width: 18px; height: 18px;" ${checked}>
+                        <input type="text" name="answers[${i}][texte]" value="${txt}" class="form-control" placeholder="Option ${String.fromCharCode(65 + i)}" required>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+    }
+
+    // Close modal on background click
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
         overlay.addEventListener('click', function(e) {
             if (e.target === this) {
@@ -591,51 +676,6 @@
             }
         });
     });
-
-    function updateAnswerFields(type) {
-        const container = document.getElementById('answersContainer');
-        const addBtn = document.getElementById('addAnswerBtn');
-        
-        if (type === 'vrai_faux') {
-            container.innerHTML = `
-                <div class="answer-input-item">
-                    <input type="checkbox" name="answers[0][est_correcte]" value="1" class="answer-checkbox">
-                    <input type="text" name="answers[0][texte]" class="form-control answer-input" value="Vrai" required readonly>
-                </div>
-                <div class="answer-input-item">
-                    <input type="checkbox" name="answers[1][est_correcte]" value="1" class="answer-checkbox">
-                    <input type="text" name="answers[1][texte]" class="form-control answer-input" value="Faux" required readonly>
-                </div>
-            `;
-            addBtn.style.display = 'none';
-            answerCount = 2;
-        } else {
-            container.innerHTML = `
-                <div class="answer-input-item">
-                    <input type="checkbox" name="answers[0][est_correcte]" value="1" class="answer-checkbox">
-                    <input type="text" name="answers[0][texte]" class="form-control answer-input" placeholder="Réponse 1" required>
-                </div>
-                <div class="answer-input-item">
-                    <input type="checkbox" name="answers[1][est_correcte]" value="1" class="answer-checkbox">
-                    <input type="text" name="answers[1][texte]" class="form-control answer-input" placeholder="Réponse 2" required>
-                </div>
-            `;
-            addBtn.style.display = 'inline-flex';
-            answerCount = 2;
-        }
-    }
-
-    function addAnswerField() {
-        const container = document.getElementById('answersContainer');
-        const newAnswer = document.createElement('div');
-        newAnswer.className = 'answer-input-item';
-        newAnswer.innerHTML = `
-            <input type="checkbox" name="answers[${answerCount}][est_correcte]" value="1" class="answer-checkbox">
-            <input type="text" name="answers[${answerCount}][texte]" class="form-control answer-input" placeholder="Réponse ${answerCount + 1}" required>
-        `;
-        container.appendChild(newAnswer);
-        answerCount++;
-    }
 </script>
 @endpush
 @endsection

@@ -9,6 +9,11 @@ use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\FaqController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\TrialController;
+use App\Http\Controllers\Api\PartnerAuthController;
+use App\Http\Controllers\Api\PartnerController;
+use App\Http\Controllers\Api\InstallmentController;
+use App\Http\Controllers\Api\OpportunityController as ApiOpportunityController;
+use App\Http\Controllers\Api\PublicCourseController;
 use Illuminate\Support\Facades\Route;
 
 // ============================================
@@ -40,6 +45,9 @@ Route::get('/profiles/{id}',     [ProfileController::class, 'show']);
 Route::get('/categories',        [CourseController::class, 'categories']);
 Route::get('/packs',             [CourseController::class, 'packs']);
 Route::get('/packs/{id}',        [CourseController::class, 'packDetails'])->where('id', '[0-9]+');
+Route::get('/public/courses/digital', [PublicCourseController::class, 'digital']);
+Route::get('/public/lessons/{lesson}/theory', [PublicCourseController::class, 'theory'])->where('lesson', '[0-9]+');
+Route::get('/public/lessons/{lesson}/video/{part}', [PublicCourseController::class, 'video'])->where(['lesson' => '[0-9]+', 'part' => 'pratique|explication']);
 
 Route::get('/faq',               [FaqController::class, 'index']);
 Route::get('/faq/search',        [FaqController::class, 'search']);
@@ -51,6 +59,7 @@ Route::get('/faq/{id}',          [FaqController::class, 'show']);
 // ============================================
 Route::post('/payment/webhook',  [PaymentController::class, 'webhook'])->name('payment.webhook');
 Route::get('/payment/return',    [PaymentController::class, 'returnUrl'])->name('payment.return');
+Route::post('/partner/login', [PartnerAuthController::class, 'login']);
 
 // ============================================
 // AUTHENTICATED ROUTES
@@ -85,14 +94,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profiles/{id}/roadmap', [ProfileController::class, 'roadmap']);
     Route::get('/my-roadmap',            [ProfileController::class, 'myRoadmap']);
 
-    // Courses
+    // Courses (Module -> Lesson + Quiz architecture)
     Route::get('/packs/recommended',                       [CourseController::class, 'recommendedPacks']);
     Route::get('/packs/{id}/modules',                      [CourseController::class, 'packModules'])->where('id', '[0-9]+');
+    Route::get('/modules/{id}/lessons',                    [CourseController::class, 'moduleLessons'])->where('id', '[0-9]+');
+    Route::get('/modules/{id}/quiz',                       [CourseController::class, 'moduleQuiz'])->where('id', '[0-9]+');
+    Route::get('/modules/{id}/quiz-info',                  [CourseController::class, 'getModuleQuizInfo'])->where('id', '[0-9]+');
+    Route::post('/modules/{id}/unlock-by-referral',        [CourseController::class, 'unlockModuleByReferral'])->where('id', '[0-9]+');
+
+    // Compatibility routes
     Route::get('/modules/{id}/chapters',                   [CourseController::class, 'moduleChapters'])->where('id', '[0-9]+');
     Route::get('/chapters/{id}/lessons',                   [CourseController::class, 'chapterLessons'])->where('id', '[0-9]+');
     Route::get('/chapters/{id}/quiz',                      [CourseController::class, 'chapterQuiz'])->where('id', '[0-9]+');
     Route::get('/chapters/{id}/quiz-info',                 [CourseController::class, 'getChapterQuizInfo']);
     Route::post('/chapters/{id}/unlock-by-referral',       [CourseController::class, 'unlockByReferral'])->where('id', '[0-9]+');
+
     Route::get('/lessons/{id}',                            [CourseController::class, 'lesson'])->where('id', '[0-9]+');
     Route::post('/lessons/{id}/complete',                  [CourseController::class, 'completeLesson'])->where('id', '[0-9]+');
     Route::post('/quiz/{id}/submit',                       [CourseController::class, 'submitQuiz'])->where('id', '[0-9]+');
@@ -107,6 +123,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/packs/{id}/purchase', [WalletController::class, 'purchasePack'])->where('id', '[0-9]+');
     Route::get('/user/packs',           [WalletController::class, 'myPacks']);
+    Route::get('/opportunities', [ApiOpportunityController::class, 'index']);
+    Route::get('/payments/installments', [InstallmentController::class, 'index']);
+    Route::post('/payments/installments/{installment}/pay', [InstallmentController::class, 'pay']);
 
     // Referral
     Route::prefix('referral')->group(function () {
@@ -125,4 +144,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/initiate-deposit', [PaymentController::class, 'initiateDeposit']);
         Route::post('/check-status',     [PaymentController::class, 'checkPaymentStatus']);
     });
+});
+
+Route::middleware('auth:partner_sanctum')->prefix('partner')->group(function () {
+    Route::post('/logout', [PartnerAuthController::class, 'logout']);
+    Route::get('/dashboard', [PartnerController::class, 'dashboard']);
+    Route::get('/centres', [PartnerController::class, 'centres']);
+    Route::get('/plans', [PartnerController::class, 'plans']);
+    Route::post('/plans', [PartnerController::class, 'savePlan']);
+    Route::get('/schedules', [PartnerController::class, 'schedules']);
+    Route::post('/schedules', [PartnerController::class, 'saveSchedule']);
 });

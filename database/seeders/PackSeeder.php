@@ -302,14 +302,21 @@ class PackSeeder extends Seeder
         ];
 
         foreach ($packs as $pack) {
+            $dureesArr = is_array($pack['durees']) ? $pack['durees'] : array_map('trim', explode(',', $pack['durees']));
+            $diplomesArr = isset($pack['certifications']) 
+                ? (is_array($pack['certifications']) ? $pack['certifications'] : array_map('trim', explode(',', $pack['certifications'])))
+                : ['AQP', 'CQP', 'DQP'];
+
             $packId = DB::table('packs')->insertGetId([
                 'category_id' => $pack['category_id'],
                 'nom' => $pack['nom'],
                 'slug' => $pack['slug'],
                 'description' => $pack['description'],
                 'niveau_requis' => $pack['niveau_requis'],
-                'durees_disponibles' => json_encode($pack['durees']),
+                'durees_disponibles' => json_encode($dureesArr),
+                'diplomes_possibles' => json_encode($diplomesArr),
                 'prix_points' => $pack['prix_points'],
+                'prix_fcfa' => 135000,
                 'active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),

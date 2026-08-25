@@ -52,7 +52,29 @@
         </div>
 
         <div class="menu-section">
-            <div class="menu-section-title">Finance</div>
+            <div class="menu-section-title">Partenaires</div>
+            <a href="{{ route('admin.partners.index') }}" class="menu-item {{ request()->routeIs('admin.partners.*') ? 'active' : '' }}">
+                <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-1a4 4 0 00-4-4h-1m-2 5H4v-1a4 4 0 014-4h4a4 4 0 014 4v1zm-4-9a4 4 0 100-8 4 4 0 000 8zm6 1a3 3 0 100-6 3 3 0 000 6z"></path>
+                </svg>
+                <span>Gérer les partenaires</span>
+            </a>
+            <a href="{{ url('/partenaire/login') }}" class="menu-item" target="_blank" rel="noopener">
+                <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4m-2-8h6v6m-7 1L20 4"></path>
+                </svg>
+                <span>Portail partenaire</span>
+            </a>
+        </div>
+
+        <div class="menu-section">
+            <div class="menu-section-title">Finance & Comptabilité</div>
+            <a href="{{ route('admin.comptabilite.index') }}" class="menu-item {{ request()->routeIs('admin.comptabilite.*') ? 'active' : '' }}">
+                <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                </svg>
+                <span>Comptabilité & Rapports</span>
+            </a>
             <a href="{{ route('admin.transactions.index') }}" class="menu-item {{ request()->routeIs('admin.transactions.index') ? 'active' : '' }}">
                 <svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>

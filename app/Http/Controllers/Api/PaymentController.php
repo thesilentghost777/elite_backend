@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Services\MoneyFusionService;
 use App\Models\Transaction;
 use App\Models\UserPack;
+use App\Models\Pack;
+use App\Models\SystemSetting;
+use App\Services\PartnerPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,11 +16,13 @@ use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
-    public function __construct(private MoneyFusionService $moneyFusionService) {}
+    public function __construct(
+        private MoneyFusionService $moneyFusionService,
+        private PartnerPaymentService $partnerPaymentService,
+    ) {}
 
     /**
-     * Achat d'un pack — débit direct sur solde_points (= FCFA)
-     * Montant fixe : 10 000
+    * Achat d'un pack — débit en points après conversion du prix réel en FCFA.
      */
     public function initiatePackPayment(Request $request): JsonResponse
     {
@@ -35,16 +40,36 @@ class PaymentController extends Controller
             ], 422);
         }
 
-        $montant = 10000;
+        $pack = Pack::findOrFail($packId);
 
-        // Vérification du solde — solde_points = FCFA
-        if ($user->solde_points < $montant) {
+        if ($user->partner_id) {
+            $userPack = $this->partnerPaymentService->attachPlanToPack($user, $pack);
+            $installments = $userPack->load('installments')->installments;
+            $msg = ($installments && $installments->isNotEmpty())
+                ? 'Formation ajoutée avec son échéancier partenaire.'
+                : 'Formation débloquée avec succès. Vous avez un accès complet.';
+
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+                'data' => [
+                    'user_pack_id' => $userPack->id,
+                    'installments' => $installments,
+                    'has_schedule' => $installments && $installments->isNotEmpty(),
+                ],
+            ], 201);
+        }
+
+        $montant = $pack->prix_fcfa_effectif;
+        $points = (int) ceil($montant / max(1, SystemSetting::getTauxConversionFcfaPoints()));
+
+        if ($user->solde_points < $points) {
             return response()->json([
                 'success' => false,
                 'message' => 'Solde insuffisant. Veuillez recharger votre wallet.',
                 'data'    => [
                     'solde_actuel'   => $user->solde_points,
-                    'montant_requis' => $montant,
+                    'montant_requis' => $points,
                 ],
             ], 422);
         }
@@ -52,15 +77,14 @@ class PaymentController extends Controller
         $reference = Transaction::generateReference();
 
         try {
-            DB::transaction(function () use ($user, $packId, $montant, $reference) {
-                // Débiter solde_points
-                $user->decrement('solde_points', $montant);
+            DB::transaction(function () use ($user, $packId, $montant, $points, $reference) {
+                $user->decrement('solde_points', $points);
 
                 Transaction::create([
                     'user_id'      => $user->id,
                     'type'         => 'achat_pack',
                     'montant_fcfa' => $montant,
-                    'points'       => $montant,
+                    'points'       => $points,
                     'reference'    => $reference,
                     'description'  => "Achat pack ID {$packId}",
                     'statut'       => 'complete',
@@ -77,21 +101,18 @@ class PaymentController extends Controller
                     'date_expiration' => null,
                 ]);
 
-                // Débloquer le premier chapitre
+                // Débloquer le premier module
                 $firstModule = \App\Models\Module::where('pack_id', $packId)
-                    ->where('active', true)->orderBy('ordre')->first();
+                    ->where('active', true)->orderBy('ordre')->orderBy('id')->first();
                 if ($firstModule) {
-                    $firstChapter = \App\Models\Chapter::where('module_id', $firstModule->id)
-                        ->where('active', true)->orderBy('ordre')->first();
-                    if ($firstChapter) {
-                        \App\Models\ChapterUnlock::firstOrCreate(
-                            ['user_id' => $user->id, 'chapter_id' => $firstChapter->id],
-                            ['unlock_method' => 'score']
-                        );
-                    }
+                    \App\Models\ModuleUnlock::firstOrCreate(
+                        ['user_id' => $user->id, 'module_id' => $firstModule->id],
+                        ['unlock_method' => 'score']
+                    );
                 }
 
                 $this->handleReferralOnPackPurchase($user, $packId);
+                $this->partnerPaymentService->markTranche3PaidOnPackPurchase($user, $packId);
             });
 
             return response()->json([
@@ -100,6 +121,7 @@ class PaymentController extends Controller
                 'data'    => [
                     'reference'     => $reference,
                     'montant'       => $montant,
+                    'points'        => $points,
                     'nouveau_solde' => $user->fresh()->solde_points,
                 ],
             ]);
@@ -131,7 +153,7 @@ class PaymentController extends Controller
             'user_id'      => $user->id,
             'type'         => 'depot',
             'montant_fcfa' => $montant,
-            'points'       => $montant,
+            'points'       => (int) floor($montant / max(1, SystemSetting::getTauxConversionFcfaPoints())),
             'reference'    => $reference,
             'description'  => "Dépôt de {$montant} FCFA",
             'statut'       => 'en_attente',
@@ -215,6 +237,24 @@ class PaymentController extends Controller
     {
         Log::info('MoneyFusion webhook received', $request->all());
 
+        // Vérification de la signature du webhook
+        $secret = config('services.moneyfusion.webhook_secret');
+        if ($secret) {
+            $signature = $request->header('X-Moneyfusion-Signature')
+                      ?? $request->header('X-Webhook-Signature')
+                      ?? $request->header('Signature');
+
+            $computedSignature = hash_hmac('sha256', $request->getContent(), $secret);
+
+            if (!$signature || !hash_equals($computedSignature, (string) $signature)) {
+                Log::warning('MoneyFusion webhook signature verification failed', [
+                    'received_signature' => $signature,
+                    'ip'                 => $request->ip(),
+                ]);
+                return response()->json(['success' => false, 'message' => 'Signature invalide'], 401);
+            }
+        }
+
         $statut    = $request->input('statut');
         $reference = $request->input('personal_Info.0.transactionRef')
                   ?? ($request->input('personal_Info')[0]['transactionRef'] ?? null);
@@ -250,16 +290,16 @@ class PaymentController extends Controller
     }
 
     /**
-     * Dépôt réussi — crédite solde_points (= FCFA)
+    * Dépôt réussi — convertit le montant payé en points.
      */
     private function processSuccessfulDeposit($user, $transaction): void
     {
         $montant = (float) $transaction->montant_fcfa;
 
-        // Créditer solde_points
-        $user->increment('solde_points', $montant);
+        $points = (int) floor($montant / max(1, SystemSetting::getTauxConversionFcfaPoints()));
+        $user->increment('solde_points', $points);
 
-        $transaction->update(['statut' => 'complete']);
+        $transaction->update(['points' => $points, 'statut' => 'complete']);
     }
 
     private function handleReferralOnPackPurchase($user, $packId): void

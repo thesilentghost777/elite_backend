@@ -15,6 +15,9 @@ class QuizResult extends Model
         'note',
         'total_questions',
         'bonnes_reponses',
+        'points_gagnes',
+        'palier_atteint',
+        'gain_cagnotte_fcfa',
         'reussi',
         'reponses_utilisateur',
         'tentative',
@@ -26,6 +29,9 @@ class QuizResult extends Model
         'note' => 'decimal:2',
         'reussi' => 'boolean',
         'reponses_utilisateur' => 'array',
+        'points_gagnes' => 'integer',
+        'palier_atteint' => 'integer',
+        'gain_cagnotte_fcfa' => 'decimal:2',
     ];
 
     public function user()

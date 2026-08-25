@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\SystemSetting;
 
 class Pack extends Model
 {
@@ -19,6 +20,7 @@ class Pack extends Model
         'durees_disponibles',
         'diplomes_possibles',
         'prix_points',
+        'prix_fcfa',
         'debouches',
         'ordre',
         'active',
@@ -28,6 +30,7 @@ class Pack extends Model
         'durees_disponibles' => 'array',
         'diplomes_possibles' => 'array',
         'debouches' => 'array',
+        'prix_fcfa' => 'decimal:2',
         'active' => 'boolean',
     ];
 
@@ -61,20 +64,18 @@ class Pack extends Model
     public function getTotalLessonsAttribute(): int
     {
         return $this->modules()
-            ->with('chapters.lessons')
+            ->with('lessons')
             ->get()
-            ->flatMap(fn($m) => $m->chapters)
-            ->flatMap(fn($c) => $c->lessons)
+            ->flatMap(fn($m) => $m->lessons)
             ->count();
     }
 
     public function getTotalDurationAttribute(): int
     {
         return $this->modules()
-            ->with('chapters.lessons')
+            ->with('lessons')
             ->get()
-            ->flatMap(fn($m) => $m->chapters)
-            ->flatMap(fn($c) => $c->lessons)
+            ->flatMap(fn($m) => $m->lessons)
             ->sum('duree_minutes');
     }
 
@@ -88,5 +89,73 @@ class Pack extends Model
         return $query->whereHas('profiles', function ($q) use ($profileId) {
             $q->where('career_profiles.id', $profileId);
         })->orderByRaw('(SELECT priorite FROM pack_profiles WHERE pack_profiles.pack_id = packs.id AND pack_profiles.profile_id = ?) DESC', [$profileId]);
+    }
+
+    public function getDureesDisponiblesAttribute($value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        if (empty($value)) {
+            return [];
+        }
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+            if (is_string($decoded)) {
+                return array_values(array_filter(array_map('trim', explode(',', $decoded))));
+            }
+            return array_values(array_filter(array_map('trim', explode(',', $value))));
+        }
+        return [];
+    }
+
+    public function getDiplomesPossiblesAttribute($value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        if (empty($value)) {
+            return [];
+        }
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+            if (is_string($decoded)) {
+                return array_values(array_filter(array_map('trim', explode(',', $decoded))));
+            }
+            return array_values(array_filter(array_map('trim', explode(',', $value))));
+        }
+        return [];
+    }
+
+    public function getDebouchesAttribute($value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        if (empty($value)) {
+            return [];
+        }
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+            if (is_string($decoded)) {
+                return array_values(array_filter(array_map('trim', explode(',', $decoded))));
+            }
+            return array_values(array_filter(array_map('trim', explode(',', $value))));
+        }
+        return [];
+    }
+
+    public function getPrixFcfaEffectifAttribute(): float
+    {
+        return (float) ($this->prix_fcfa ?? ((float) $this->prix_points * SystemSetting::getTauxConversionFcfaPoints()));
     }
 }

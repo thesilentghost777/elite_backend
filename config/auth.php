@@ -41,9 +41,17 @@ return [
             'provider' => 'users',
         ],
         'sanctum' => [
-        'driver'   => 'sanctum',
-        'provider' => 'elite_users', // ← important
-    ],
+            'driver' => 'sanctum',
+            'provider' => 'elite_users',
+        ],
+        'partner_sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => 'partners',
+        ],
+        'partner_web' => [
+            'driver' => 'session',
+            'provider' => 'partners',
+        ],
     ],
 
     /*
@@ -70,9 +78,13 @@ return [
         ],
 
         'elite_users' => [
-        'driver' => 'eloquent',
-        'model'  => App\Models\EliteUser::class, // ← pointe vers EliteUser
-    ],
+            'driver' => 'eloquent',
+            'model' => App\Models\EliteUser::class,
+        ],
+        'partners' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Partner::class,
+        ],
     ],
 
     /*

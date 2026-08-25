@@ -501,9 +501,9 @@
         @forelse($user->transactions->take(10) as $transaction)
         <div class="transaction-item">
             <div class="transaction-info">
-                <div class="transaction-icon {{ in_array($transaction->type, ['depot', 'parrainage', 'code_caisse', 'bourse']) ? 'green' : 'blue' }}">
+                <div class="transaction-icon {{ in_array($transaction->type, ['depot', 'parrainage', 'code_caisse', 'bourse', 'bonus_admin', 'transfert_recu']) ? 'green' : 'blue' }}">
                     <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        @if(in_array($transaction->type, ['depot', 'parrainage', 'code_caisse', 'bourse']))
+                        @if(in_array($transaction->type, ['depot', 'parrainage', 'code_caisse', 'bourse', 'bonus_admin', 'transfert_recu']))
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                         @else
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
@@ -516,8 +516,8 @@
                 </div>
             </div>
             <div class="transaction-amount">
-                <div class="amount {{ in_array($transaction->type, ['depot', 'parrainage', 'code_caisse', 'bourse']) ? 'positive' : 'negative' }}">
-                    {{ in_array($transaction->type, ['depot', 'parrainage', 'code_caisse', 'bourse']) ? '+' : '-' }}{{ number_format($transaction->points, 0, ',', ' ') }} pts
+                <div class="amount {{ in_array($transaction->type, ['depot', 'parrainage', 'code_caisse', 'bourse', 'bonus_admin', 'transfert_recu']) ? 'positive' : 'negative' }}">
+                    {{ in_array($transaction->type, ['depot', 'parrainage', 'code_caisse', 'bourse', 'bonus_admin', 'transfert_recu']) ? '+' : '-' }}{{ number_format($transaction->points, 0, ',', ' ') }} pts
                 </div>
                 <div class="badge badge-{{ $transaction->statut === 'complete' ? 'success' : 'warning' }}" style="font-size: 0.75rem;">
                     {{ ucfirst($transaction->statut) }}
