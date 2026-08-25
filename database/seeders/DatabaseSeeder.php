@@ -19,7 +19,7 @@ class DatabaseSeeder extends Seeder
             DigitalCourseSeeder::class,
             ProfilePackSeeder::class,
             RoadmapSeeder::class,
-            
+            BibliothequeSeeder::class,
         ]);
     }
 }
